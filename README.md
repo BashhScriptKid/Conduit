@@ -268,6 +268,9 @@ private void secret() { }
 
 ## Installation
 
+Available soon.
+
+<!--
 ```bash
 # Clone repository
 git clone https://github.com/yourusername/conduit.git
@@ -279,6 +282,7 @@ make
 # Install (optional)
 sudo make install
 ```
+-->
 
 ---
 
@@ -286,6 +290,9 @@ sudo make install
 
 ### Compile & Run
 
+Available soon.
+
+<!--
 ```bash
 # Transpile to Rust
 conduit hello.cndt -o hello.rs
@@ -303,6 +310,7 @@ rustc hello.rs -o hello
 # Transpile + compile + run
 conduit run program.cndt
 ```
+-->
 
 ---
 
@@ -451,15 +459,15 @@ MIT License - See [LICENSE](./LICENSE) for details.
 
 ## Contact
 
-- **Repository:** https://github.com/yourusername/conduit
-- **Issues:** https://github.com/yourusername/conduit/issues
-- **Discussions:** https://github.com/yourusername/conduit/discussions
+- **Repository:** https://github.com/BashhScriptKid/Conduit
+- **Issues:** https://github.com/BashhScriptKid/Conduit/issues
+- **Discussions:** https://github.com/BashhScriptKid/Conduit/discussions
 
 ---
 
 ## Acknowledgments
 
-Conduit stands on the shoulders of giants:
+Conduit's design is derived from:
 - **Rust** - For the borrow checker and safety guarantees
 - **C#** - For syntax inspiration and developer ergonomics
 - **C** - For direct hardware control philosophy
