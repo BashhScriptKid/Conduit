@@ -1,6 +1,8 @@
 # **Conduit Language Specification – Version 7**  
 *(January 05, 2026)*
 
+This specification is not covered under repository's Apache 2.0 license, but instead under the Creative Commons' [CC-BY-SA](https://creativecommons.org/licenses/by-sa/4.0/_) license
+
 ## **Introduction**
 
 Conduit is a systems programming language. 
