@@ -1,0 +1,17 @@
+int sum_to_n(int n) {
+    int mut sum = 0;
+    int mut i = 1;
+
+    while (i <= n) {
+        sum = sum + i;
+        i = i + 1;
+    }
+
+    return sum;
+}
+
+int main() {
+    int result = sum_to_n(10);
+    #println("Sum 1 to 10: {}", result);
+    return 0;
+}

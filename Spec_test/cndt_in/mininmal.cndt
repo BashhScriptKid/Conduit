@@ -1,0 +1,12 @@
+// Absolute bare minimum: variables, arithmetic, printing
+// ...and the ability to filter this comment
+
+int main() {
+    int x = 5;
+    int y = 10;
+    int z = x + y;
+
+    #println("Result: {}", z);
+
+    return 0;
+}

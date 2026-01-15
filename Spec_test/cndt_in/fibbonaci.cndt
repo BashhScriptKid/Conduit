@@ -1,0 +1,35 @@
+// Based of my prior Rust script.
+// Generates Fibonacci sequence until u128 overflow
+
+int main() {
+    (u128, u128) mut x = (0, 1);
+
+    Vector<u128> mut list = Vector<u128>.new();
+
+    list.push(x.0);
+    list.push(x.1);
+
+    while (true) {
+        (u128 t, bool overflow) = x.1.overflowing_add(x.0);
+
+        if (overflow) {
+            #println("Stopping execution, hitting limit! Sequence generated: {}", list.len());
+            break;
+        }
+
+        list.push(t);
+
+        x.0 = x.1;
+        x.1 = t;
+    }
+
+    const bool useNewline = false;
+
+    if (useNewline) {
+        #println("{:#?}", list);
+    } else {
+        #println("{:?}", list);
+    }
+
+    return 0;
+}

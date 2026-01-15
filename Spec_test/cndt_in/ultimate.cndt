@@ -1,0 +1,353 @@
+// Ultimate turing-complete test
+// Tests: Variables, Arithmetic, Conditionals, Loops, Functions, Recursion, State Mutation
+
+// =========================================
+// 1. VARIABLES AND ARITHMETIC
+// =========================================
+
+int global_counter = 0;
+
+// =========================================
+// 2. FUNCTIONS (Subroutines)
+// =========================================
+
+public int add(int a, int b) {
+    return a + b;
+}
+
+public int subtract(int a, int b) {
+    return a - b;
+}
+
+public int multiply(int a, int b) {
+    return a * b;
+}
+
+public int divide(int a, int b) {
+    if (b == 0) {
+        return 0;
+    }
+    return a / b;
+}
+
+// =========================================
+// 3. CONDITIONALS (Branching)
+// =========================================
+
+public int absolute(int x) {
+    if (x < 0) {
+        return -x;
+    } else {
+        return x;
+    }
+}
+
+public int max(int a, int b) {
+    if (a > b) {
+        return a;
+    }
+    return b;
+}
+
+// =========================================
+// 4. LOOPS (Iteration)
+// =========================================
+
+// While loop - sum from 1 to n
+public int sum_to_n(int n) {
+    int mut sum = 0;
+    int mut i = 1;
+
+    while (i <= n) {
+        sum = sum + i;
+        i = i + 1;
+    }
+
+    return sum;
+}
+
+// For loop - factorial
+public int factorial_iterative(int n) {
+    int mut result = 1;
+
+    for (int i in 1..=n) {
+        result = result * i;
+    }
+
+    return result;
+}
+
+// =========================================
+// 5. RECURSION (Alternative to loops)
+// =========================================
+
+public int factorial_recursive(int n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial_recursive(n - 1);
+}
+
+// Fibonacci - exponential recursion
+public int fibonacci(int n) {
+    if (n <= 1) {
+        return n;
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+// =========================================
+// 6. STATE MUTATION (Memory operations)
+// =========================================
+
+public void increment_global() {
+    mut global_counter;
+    global_counter = global_counter + 1;
+}
+
+public int get_global() {
+    return global_counter;
+}
+
+// =========================================
+// 7. ARRAYS (Indexed memory access)
+// =========================================
+
+public int array_sum(int[] arr, int length) {
+    int mut sum = 0;
+    int mut i = 0;
+
+    while (i < length) {
+        sum = sum + arr[i];
+        i = i + 1;
+    }
+
+    return sum;
+}
+
+public void array_fill(int[] mut arr, int length, int value) {
+    int mut i = 0;
+
+    while (i < length) {
+        arr[i] = value;
+        i = i + 1;
+    }
+}
+
+// =========================================
+// 8. COMPLEX STATE: STACK MACHINE
+// =========================================
+// Simulates a simple stack-based virtual machine
+
+struct Stack {
+    int[256] data
+    int top
+}
+
+public Stack stack_new() {
+    return Stack {
+        data: {0},  // Zero-initialized
+        top: 0
+    };
+}
+
+public void stack_push(&!Stack stack, int value) {
+    if (stack.top < 256) {
+        stack.data[stack.top] = value;
+        stack.top = stack.top + 1;
+    }
+}
+
+public int stack_pop(&!Stack stack) {
+    if (stack.top > 0) {
+        stack.top = stack.top - 1;
+        return stack.data[stack.top];
+    }
+    return 0;
+}
+
+public bool stack_is_empty(&Stack stack) {
+    return stack.top == 0;
+}
+
+// =========================================
+// 9. CONTROL FLOW: COLLATZ CONJECTURE
+// =========================================
+// Demonstrates complex conditional logic
+
+public int collatz_steps(int n) {
+    int mut steps = 0;
+    int mut current = n;
+
+    while (current != 1) {
+        if (current % 2 == 0) {
+            current = current / 2;
+        } else {
+            current = current * 3 + 1;
+        }
+        steps = steps + 1;
+
+        // Safety: prevent infinite loop
+        if (steps > 10000) {
+            return -1;
+        }
+    }
+
+    return steps;
+}
+
+// =========================================
+// 10. TURING MACHINE SIMULATION
+// =========================================
+// Simulates a 2-state, 2-symbol busy beaver
+
+enum TapeSymbol {
+    Zero,
+    One
+}
+
+enum State {
+    A,
+    B,
+    Halt
+}
+
+struct TuringMachine {
+    TapeSymbol[100] tape
+    int head
+    State state
+    int steps
+}
+
+public TuringMachine tm_new() {
+    var tm = TuringMachine {
+        tape: {TapeSymbol.Zero},
+        head: 50,  // Start in middle
+        state: State.A,
+        steps: 0
+    };
+    return tm;
+}
+
+public void tm_step(&!TuringMachine tm) {
+    if (match tm.state {
+        State.Halt => { return; }
+        _ => { false }
+    }) {
+        return;
+    }
+
+    var current_symbol = tm.tape[tm.head];
+
+    // Busy beaver 2-state transitions
+    match (tm.state, current_symbol) {
+        (State.A, TapeSymbol.Zero) => {
+            tm.tape[tm.head] = TapeSymbol.One;
+            tm.head = tm.head + 1;
+            tm.state = State.B;
+        }
+        (State.A, TapeSymbol.One) => {
+            tm.tape[tm.head] = TapeSymbol.Zero;
+            tm.head = tm.head - 1;
+            tm.state = State.B;
+        }
+        (State.B, TapeSymbol.Zero) => {
+            tm.tape[tm.head] = TapeSymbol.One;
+            tm.head = tm.head - 1;
+            tm.state = State.A;
+        }
+        (State.B, TapeSymbol.One) => {
+            tm.tape[tm.head] = TapeSymbol.One;
+            tm.head = tm.head + 1;
+            tm.state = State.Halt;
+        }
+        _ => { }
+    }
+
+    tm.steps = tm.steps + 1;
+}
+
+public int tm_run(&!TuringMachine tm, int max_steps) {
+    int mut i = 0;
+
+    while (i < max_steps) {
+        match tm.state {
+            State.Halt => { break; }
+            _ => { }
+        }
+
+        tm_step(tm);
+        i = i + 1;
+    }
+
+    return tm.steps;
+}
+
+// =========================================
+// MAIN: RUN ALL TESTS
+// =========================================
+
+public int main() {
+    #println("=== TURING COMPLETENESS TESTS ===\n");
+
+    // Test 1: Basic arithmetic
+    #println("1. Arithmetic:");
+    #println("   5 + 3 = {}", add(5, 3));
+    #println("   10 - 4 = {}", subtract(10, 4));
+    #println("   6 * 7 = {}", multiply(6, 7));
+    #println("   20 / 4 = {}\n", divide(20, 4));
+
+    // Test 2: Conditionals
+    #println("2. Conditionals:");
+    #println("   abs(-42) = {}", absolute(-42));
+    #println("   max(15, 23) = {}\n", max(15, 23));
+
+    // Test 3: Loops
+    #println("3. Loops:");
+    #println("   sum(1..10) = {}", sum_to_n(10));
+    #println("   factorial(5) = {}\n", factorial_iterative(5));
+
+    // Test 4: Recursion
+    #println("4. Recursion:");
+    #println("   factorial_recursive(6) = {}", factorial_recursive(6));
+    #println("   fibonacci(10) = {}\n", fibonacci(10));
+
+    // Test 5: Global state mutation
+    #println("5. State Mutation:");
+    #println("   global_counter = {}", get_global());
+    increment_global();
+    increment_global();
+    increment_global();
+    #println("   after 3 increments = {}\n", get_global());
+
+    // Test 6: Arrays
+    #println("6. Arrays:");
+    int[5] mut numbers = {1, 2, 3, 4, 5};
+    #println("   array sum = {}", array_sum(numbers, 5));
+    array_fill(numbers, 5, 42);
+    #println("   after fill(42) = {}\n", array_sum(numbers, 5));
+
+    // Test 7: Stack machine
+    #println("7. Stack Machine:");
+    var mut stack = stack_new();
+    stack_push(&stack, 10);
+    stack_push(&stack, 20);
+    stack_push(&stack, 30);
+    #println("   pop = {}", stack_pop(&stack));
+    #println("   pop = {}", stack_pop(&stack));
+    #println("   pop = {}\n", stack_pop(&stack));
+
+    // Test 8: Complex control flow
+    #println("8. Collatz Conjecture:");
+    #println("   collatz(27) takes {} steps\n", collatz_steps(27));
+
+    // Test 9: Turing machine
+    #println("9. Turing Machine (2-state Busy Beaver):");
+    var mut tm = tm_new();
+    var steps = tm_run(&tm, 100);
+    #println("   Halted after {} steps\n", steps);
+
+    #println("=== ALL TESTS COMPLETE ===");
+
+    return 0;
+}

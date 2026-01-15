@@ -1,0 +1,6 @@
+// The absolute minimum to prove transpilation works
+
+int main() {
+    #println("Hello, Conduit!");
+    return 0;
+}
