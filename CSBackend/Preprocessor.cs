@@ -74,7 +74,7 @@ public static class Preprocessor
     {
         // Safety: ensure clean state (helps catch logic errors during dev)
         if (_maskedStrings.Count > 0)
-            throw new InvalidOperationException("MaskQuote called with non-empty masked strings. Did a previous run fail?");
+            throw new InvalidOperationException("MaskQuote called with non-empty masked strings. Did the previous run fail?");
     
         string? line;
         while ((line = @in.ReadLine()) != null)
@@ -124,8 +124,8 @@ public static class Preprocessor
             { "uloong",    "u128" },  { "uint128", "u128" },
             { "archint",  "isize" },
             { "uarchint", "usize" },
-            { "float",     "f32"  },
-            { "double",    "f64"  }
+            { "float",     "f32"  },  { "float32",  "f32" },
+            { "double",    "f64"  },  { "float64",  "f64" },
         };
         
         // Sort by length to avoid partial match-replacements (long vs loong)
