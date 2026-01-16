@@ -173,18 +173,18 @@ public static class Preprocessor
 
             // 1. Handle Mutable cases first (Specific matches)
             // '&!var' -> '&mut-var'
-            p = Regex.Replace(p, $@"&!({IdentifierRegex.@this})", @"&mut-$1");
+            p = Regex.Replace(p, $"&!({IdentifierRegex.@this})", "&mut-$1");
             // '*!var' -> '*mut-var'
-            p = Regex.Replace(p, $@"\*!({IdentifierRegex.@this})", @"*mut-$1");
+            p = Regex.Replace(p, $@"\*!({IdentifierRegex.@this})", "*mut-$1");
 
             // 2. Handle Immutable cases (General matches)
             // (?!mut-) means "Match & only if it's NOT followed by the string 'mut-'"
             // This prevents the rule from re-processing what the first rule just changed.
             
             // '&var' -> '&-var' 
-            p = Regex.Replace(p, $@"&(?!mut-)({IdentifierRegex.@this})", @"&-$1");
+            p = Regex.Replace(p, $"&(?!mut-)({IdentifierRegex.@this})", "&-$1");
             // '*var' -> '*-var'
-            p = Regex.Replace(p, $@"\*(?!mut-)({IdentifierRegex.@this})", @"*-$1");
+            p = Regex.Replace(p, $@"\*(?!mut-)({IdentifierRegex.@this})", "*-$1");
                 
             @out.WriteLine(p);
         }
