@@ -36,9 +36,16 @@ public static class Preprocessor
 
         // Pass iterations here
         RunPass(StripComments);
+        
         RunPass(MaskQuotes);
+        
         RunPass(ConvertNativeTypeKeyword);
-        RunPass(ConvertNativeSyntax);
+        
+        // Convert native syntax
+        RunPass(StripStorageQualifiers);
+        RunPass(ConvertReferencesAndPointers);
+        RunPass(ConvertMacros);
+        
         RunPass(UnmaskQuotes);
 
         // 3. Final Pass: write sourceBuffer to output
@@ -145,46 +152,47 @@ public static class Preprocessor
         }
     }
 
-    private static void ConvertNativeSyntax(StreamReader @in, StreamWriter @out)
+    private static void StripStorageQualifiers(StreamReader @in, StreamWriter @out)
+    {
+        string? line;
+        while ((line = @in.ReadLine()) != null)
+        {
+            // Removes 'function' or 'static' when they precede a type/identifier
+            string p = Regex.Replace(line, @"\b(function|static)\s+", string.Empty);
+            @out.WriteLine(p);
+        }
+    }
+
+    private static void ConvertReferencesAndPointers(StreamReader @in, StreamWriter @out)
     {
         string? line;
         while ((line = @in.ReadLine()) != null)
         {
             string p = line;
-            
-            // 1. Strip 'function' and 'static' keywords that appear before type declarations
-            // Matches 'function Type' or 'static Type' at the beginning of declarations
-            p = Regex.Replace(p, @"\b(function|static)\s+([a-zA-Z_]\w*(?:\??|\[\])?)", @"$2");
-            
-            // 2. Immutable reference: '&var' -> '&-var'
-            // Matches '&' followed by a valid identifier
-            p = Regex.Replace(p, @"&([a-zA-Z_]\w*)", @"&-$1");
-
-            // 3. Mutable reference: '&!var' -> '&mut-var'
+            // &!var -> &mut-var
             p = Regex.Replace(p, @"&!([a-zA-Z_]\w*)", @"&mut-$1");
-
-            // 4. Immutable pointer: '*var' -> '*-var'
-            p = Regex.Replace(p, @"\*([a-zA-Z_]\w*)", @"*-$1");
-
-            // 5. Mutable pointer: '*!var' -> '*mut-var'
+            // &var -> &-var
+            p = Regex.Replace(p, @"&([a-zA-Z_]\w*)", @"&-$1");
+            // *!var -> *mut-var
             p = Regex.Replace(p, @"\*!([a-zA-Z_]\w*)", @"*mut-$1");
+            // *var -> *-var
+            p = Regex.Replace(p, @"\*([a-zA-Z_]\w*)", @"*-$1");
+                
+            @out.WriteLine(p);
+        }
+    }
 
-            // The reason - is put between annotation is to make sure the relationship
-            // between the annotation and the variable stays clear.
-            
-            // 6. Inline assembly: '#asm' (Special case handled before general macros)
+    private static void ConvertMacros(StreamReader @in, StreamWriter @out)
+    {
+        string? line;
+        while ((line = @in.ReadLine()) != null)
+        {
+            string p = line;
+            // Special case for asm first
             p = p.Replace("#asm", "std::arch::asm!");
-
-            // 7. Macro call: '#macro' -> 'macro!'
-            // This will catch any remaining '#' tags that aren't '#asm'
+            // General macros: #name -> name!
             p = Regex.Replace(p, @"#([a-zA-Z_]\w*)", @"$1!");
-
-            // Final safety check in case macro syntax was already partially converted
-            if (p.Contains("asm!") && !p.Contains("std::arch::asm!"))
-            {
-                p = p.Replace("asm!", "std::arch::asm!");
-            }
-            
+                
             @out.WriteLine(p);
         }
     }
