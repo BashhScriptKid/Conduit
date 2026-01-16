@@ -36,8 +36,10 @@ public static class Preprocessor
 
         // Pass iterations here
         RunPass(StripComments);
+        RunPass(MaskQuotes);
         RunPass(ConvertNativeTypeKeyword);
         RunPass(ConvertNativeSyntax);
+        RunPass(UnmaskQuotes);
 
         // 3. Final Pass: write sourceBuffer to output
         ConduitProgram.Log("Finalizing output");
@@ -56,9 +58,52 @@ public static class Preprocessor
             // Process the line through both replacements before writing it once
             string p = Regex.Replace(line, @"//.*", string.Empty);
             p = Regex.Replace(p, @"/\*.*?\*/", string.Empty);
-                
+            
+            // Skip empty lines (which happens when comments are stripped)
+            if (string.IsNullOrWhiteSpace(p)) 
+                continue;
             @out.WriteLine(p);
         }
+    }
+
+    private static readonly Regex StringLiteralRegex = new(@"""([^""\\]|\\.)*""", RegexOptions.Compiled);
+    
+    static readonly Dictionary<string, string> _maskedStrings = new();
+    
+    private static void MaskQuotes(StreamReader @in, StreamWriter @out)
+    {
+        // Safety: ensure clean state (helps catch logic errors during dev)
+        if (_maskedStrings.Count > 0)
+            throw new InvalidOperationException("MaskQuote called with non-empty masked strings. Did a previous run fail?");
+    
+        string? line;
+        while ((line = @in.ReadLine()) != null)
+        {
+            string maskedLine = StringLiteralRegex.Replace(line, match =>
+            {
+                string placeholder = $"__STRING_{_maskedStrings.Count}__";
+                _maskedStrings[placeholder] = match.Value;
+                return placeholder;
+            });
+            @out.WriteLine(maskedLine);
+        }
+    }
+
+    private static void UnmaskQuotes(StreamReader @in, StreamWriter @out)
+    {
+        string? line;
+        while ((line = @in.ReadLine()) != null)
+        {
+            string finalLine = line;
+            foreach (var (placeholder, value) in _maskedStrings)
+            {
+                finalLine = finalLine.Replace(placeholder, value);
+            }
+            @out.WriteLine(finalLine);
+        }
+    
+        // Critical: always clear after unmasking
+        _maskedStrings.Clear();
     }
 
     private static void ConvertNativeTypeKeyword(StreamReader @in, StreamWriter @out)
