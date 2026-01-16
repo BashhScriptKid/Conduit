@@ -97,8 +97,6 @@ public static class Preprocessor
                 // Adjust the regex to match whatever 'int' alias they might have used
                 processedLine = Regex.Replace(processedLine, @"\b(int|int32)\s+main\(", $"{mainReturn} main(");
                 
-                @out.WriteLine(processedLine);
-                continue;
             }
             
             foreach (var key in sortedKeys)
