@@ -114,7 +114,7 @@ public static class Preprocessor
         while ((line = @in.ReadLine()) != null)
         {
             string p = line;
-
+            
             // 1. Immutable reference: '&var' -> '&-var'
             // Matches '&' followed by a valid identifier
             p = Regex.Replace(p, @"&([a-zA-Z_]\w*)", @"&-$1");
@@ -128,16 +128,22 @@ public static class Preprocessor
             // 4. Mutable pointer: '*!var' -> '*mut-var'
             p = Regex.Replace(p, @"\*!([a-zA-Z_]\w*)", @"*mut-$1");
 
-            // 5. Macro call: '#macro' -> 'macro!'
-            // Matches '#' followed by identifier, moves '!' to the end
-            p = Regex.Replace(p, @"#([a-zA-Z_]\w*)", @"$1!");
-
-            // 6. Inline assembly: '#asm' -> 'std::arch::asm!'
-            // Not sure if macro syntax is already converted; better do both cases
-            p = p.Replace("asm!", "std::arch::asm!");
+            // The reason - is put between annotation is to make sure the relationship
+            // between the annotation and the variable stays clear.
+            
+            // 5. Inline assembly: '#asm' (Special case handled before general macros)
             p = p.Replace("#asm", "std::arch::asm!");
 
-            @out.WriteLine(p);
+            // 6. Macro call: '#macro' -> 'macro!'
+            // This will catch any remaining '#' tags that aren't '#asm'
+            p = Regex.Replace(p, @"#([a-zA-Z_]\w*)", @"$1!");
+
+            // Final safety check in case macro syntax was already partially converted
+            if (p.Contains("asm!") && !p.Contains("std::arch::asm!"))
+            {
+                p = p.Replace("asm!", "std::arch::asm!");
+            }
+
         }
     }
 }
