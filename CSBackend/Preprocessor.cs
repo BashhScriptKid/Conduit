@@ -4,6 +4,10 @@ namespace CSBackend;
 
 public static class Preprocessor
 {
+    // This preprocessor performs purely lexical normalization.
+    // It does NOT validate syntax, lifetimes, scopes, or semantics.
+    // Any correctness errors are deferred to Rust or later compiler stages.
+
 
     public static void PreprocessToCore(StreamReader @in, StreamWriter @out)
     {
@@ -66,6 +70,9 @@ public static class Preprocessor
         {
             // Process the line through both replacements before writing it once
             string p = Regex.Replace(line, @"//.*", string.Empty);
+            
+            // NOTE: Block comments must be single-line at this stage.
+            // Multi-line block comments are not yet supported.
             p = Regex.Replace(p, @"/\*.*?\*/", string.Empty);
             
             // Skip empty lines (which happens when comments are stripped)
@@ -171,6 +178,14 @@ public static class Preprocessor
         {
             string p = line;
 
+            // The reason - is put between annotation is to make sure the relationship
+            // between the annotation and the variable stays clear.
+            // It will be stripped on later passes.
+            
+            // NOTE: Reference operators must be adjacent to identifiers (&x, &!x).
+            // Whitespace-separated forms (& x) are not supported at this stage.
+
+            
             // 1. Handle Mutable cases first (Specific matches)
             // '&!var' -> '&mut-var'
             p = Regex.Replace(p, $"&!({IdentifierRegex.@this})", "&mut-$1");
