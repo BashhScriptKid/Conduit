@@ -120,7 +120,8 @@ public static class Preprocessor
         // Map conduit native types to Rust-like types
         Dictionary<string, string> types = new()
         {
-            { "void",        "()" },  // Additional alias
+            { "archint",  "isize" },
+            { "uarchint", "usize" },   // Additional alias
             { "sbyte",       "i8" },  { "int8",      "i8" },
             { "byte",        "u8" },  { "uint8",     "u8" },
             { "short",      "i16" },  { "int16",    "i16" },
@@ -131,8 +132,6 @@ public static class Preprocessor
             { "ulong",      "u64" },  { "uint64",   "u64" },
             { "loong",     "i128" },  { "int128",  "i128" },
             { "uloong",    "u128" },  { "uint128", "u128" },
-            { "archint",  "isize" },
-            { "uarchint", "usize" },
             { "float",     "f32"  },  { "float32",  "f32" },
             { "double",    "f64"  },  { "float64",  "f64" },
         };
