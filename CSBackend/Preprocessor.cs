@@ -152,26 +152,30 @@ public static class Preprocessor
         {
             string p = line;
             
-            // 1. Immutable reference: '&var' -> '&-var'
+            // 1. Strip 'function' and 'static' keywords that appear before type declarations
+            // Matches 'function Type' or 'static Type' at the beginning of declarations
+            p = Regex.Replace(p, @"\b(function|static)\s+([a-zA-Z_]\w*(?:\??|\[\])?)", @"$2");
+            
+            // 2. Immutable reference: '&var' -> '&-var'
             // Matches '&' followed by a valid identifier
             p = Regex.Replace(p, @"&([a-zA-Z_]\w*)", @"&-$1");
 
-            // 2. Mutable reference: '&!var' -> '&mut-var'
+            // 3. Mutable reference: '&!var' -> '&mut-var'
             p = Regex.Replace(p, @"&!([a-zA-Z_]\w*)", @"&mut-$1");
 
-            // 3. Immutable pointer: '*var' -> '*-var'
+            // 4. Immutable pointer: '*var' -> '*-var'
             p = Regex.Replace(p, @"\*([a-zA-Z_]\w*)", @"*-$1");
 
-            // 4. Mutable pointer: '*!var' -> '*mut-var'
+            // 5. Mutable pointer: '*!var' -> '*mut-var'
             p = Regex.Replace(p, @"\*!([a-zA-Z_]\w*)", @"*mut-$1");
 
             // The reason - is put between annotation is to make sure the relationship
             // between the annotation and the variable stays clear.
             
-            // 5. Inline assembly: '#asm' (Special case handled before general macros)
+            // 6. Inline assembly: '#asm' (Special case handled before general macros)
             p = p.Replace("#asm", "std::arch::asm!");
 
-            // 6. Macro call: '#macro' -> 'macro!'
+            // 7. Macro call: '#macro' -> 'macro!'
             // This will catch any remaining '#' tags that aren't '#asm'
             p = Regex.Replace(p, @"#([a-zA-Z_]\w*)", @"$1!");
 
