@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace CSBackend;
@@ -65,23 +66,76 @@ public static class Preprocessor
 
     private static void StripComments(StreamReader @in, StreamWriter @out)
     {
+        bool inBlock = false;
         string? line;
+
         while ((line = @in.ReadLine()) != null)
         {
-            // Process the line through both replacements before writing it once
-            string p = Regex.Replace(line, @"//.*", string.Empty);
-            
-            // NOTE: Block comments must be single-line at this stage.
-            // Multi-line block comments are not yet supported.
-            p = Regex.Replace(p, @"/\*.*?\*/", string.Empty);
-            
-            // Skip empty lines (which happens when comments are stripped)
-            if (string.IsNullOrWhiteSpace(p)) 
-                continue;
-            @out.WriteLine(p);
-        }
-    }
+            var result = new StringBuilder();
+            int column_Ptr = 0;
 
+            // Dynamic line sub-reader with column pointer
+            while (column_Ptr < line.Length)
+            {
+                // CASE 1: Currently inside a /* ... */ block
+                if (inBlock)
+                {
+                    int endIndex = line.IndexOf("*/", column_Ptr, StringComparison.InvariantCulture);
+                    if (endIndex == -1) break; // Entire rest of line is hidden
+
+                    column_Ptr = endIndex + 2; // Move past the closing '*/'
+                    inBlock = false;
+                    continue;
+                }
+
+                // CASE 2: Not in a block, looking for the next comment marker
+                int nextBlockStart = line.IndexOf("/*", column_Ptr, StringComparison.InvariantCulture);
+                int nextLineComment = line.IndexOf("//", column_Ptr, StringComparison.InvariantCulture);
+
+                // Determine which comment comes first
+                int commentIndex = GetFirstCommentIndex(nextBlockStart, nextLineComment);
+
+                if (commentIndex == -1)
+                {
+                    // No more comments on this line! Append the rest and finish
+                    result.Append(line.AsSpan(column_Ptr));
+                    break;
+                }
+
+                // Append the code that appeared BEFORE the comment
+                result.Append(line.AsSpan(column_Ptr, commentIndex - column_Ptr));
+
+                // Figure out WHICH comment we just hit
+                if (commentIndex == nextLineComment)
+                {
+                    break; // Skip the rest of the line for //
+                }
+                else
+                {
+                    inBlock = true; // Enter block mode for /*
+                    column_Ptr = commentIndex + 2;
+                }
+            }
+
+            // Write the code if any exists (helps maintain file structure)
+            string output = result.ToString();
+            if (!string.IsNullOrWhiteSpace(output))
+            {
+                @out.WriteLine(output.TrimEnd());
+            }
+        }
+        if (inBlock)
+            throw new InvalidOperationException("Unterminated comment block! Did you forget a closing '*/'? (Unexpected EOF)");
+        
+        int GetFirstCommentIndex(int block, int line)
+        {
+            if (block == -1) return line;
+            if (line == -1) return block;
+            return Math.Min(block, line);
+        }
+        
+    }
+    
     private static readonly Regex StringLiteralRegex = new(@"""([^""\\]|\\.)*""", RegexOptions.Compiled);
     
     static readonly Dictionary<string, string> _maskedStrings = new();
