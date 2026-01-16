@@ -41,9 +41,9 @@ public static class Preprocessor
         }
 
         // Pass iterations here
-        RunPass(StripComments);
+        RunPass(MaskQuotes); // Mask quotes before stripping comments (ahem, links)
         
-        RunPass(MaskQuotes);
+        RunPass(StripComments);
         
         RunPass(ConvertNativeTypeKeyword);
         
@@ -180,7 +180,7 @@ public static class Preprocessor
 
             // The reason - is put between annotation is to make sure the relationship
             // between the annotation and the variable stays clear.
-            // It will be stripped on later passes.
+            // The hyphen preserves the relationship between annotation and variable in Conduit Core IR.
             
             // NOTE: Reference operators must be adjacent to identifiers (&x, &!x).
             // Whitespace-separated forms (& x) are not supported at this stage.
