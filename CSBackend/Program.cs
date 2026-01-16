@@ -158,6 +158,7 @@ public static class ConduitProgram
 
     }
 
+    // TODO: Move this function to another file before unstubbing
     private static void TranspileToRust(StreamReader coreOutput, StreamWriter rustOutput)
     {
         throw new NotImplementedException("Rust transpilation not yet implemented. Hence binary output is also not possible.");
