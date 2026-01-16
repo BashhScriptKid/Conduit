@@ -1,4 +1,4 @@
-// Ultimate turing-complete test
+// Conduit Turing-complete feature test
 // Tests: Variables, Arithmetic, Conditionals, Loops, Functions, Recursion, State Mutation
 
 // =========================================
@@ -11,21 +11,21 @@ int global_counter = 0;
 // 2. FUNCTIONS (Subroutines)
 // =========================================
 
-public int add(int a, int b) {
+int add(int a, int b) {
     return a + b;
 }
 
-public int subtract(int a, int b) {
+int subtract(int a, int b) {
     return a - b;
 }
 
-public int multiply(int a, int b) {
+int multiply(int a, int b) {
     return a * b;
 }
 
-public int divide(int a, int b) {
+SafetyNet<int, DivideError> divide(int a, int b) {
     if (b == 0) {
-        return 0;
+        Caught DivideError.DivideByZero;
     }
     return a / b;
 }
@@ -34,7 +34,7 @@ public int divide(int a, int b) {
 // 3. CONDITIONALS (Branching)
 // =========================================
 
-public int absolute(int x) {
+int absolute(int x) {
     if (x < 0) {
         return -x;
     } else {
@@ -42,7 +42,7 @@ public int absolute(int x) {
     }
 }
 
-public int max(int a, int b) {
+int max(int a, int b) {
     if (a > b) {
         return a;
     }
@@ -54,7 +54,7 @@ public int max(int a, int b) {
 // =========================================
 
 // While loop - sum from 1 to n
-public int sum_to_n(int n) {
+int sum_to_n(int n) {
     int mut sum = 0;
     int mut i = 1;
 
@@ -67,7 +67,7 @@ public int sum_to_n(int n) {
 }
 
 // For loop - factorial
-public int factorial_iterative(int n) {
+int factorial_iterative(int n) {
     int mut result = 1;
 
     for (int i in 1..=n) {
@@ -81,7 +81,7 @@ public int factorial_iterative(int n) {
 // 5. RECURSION (Alternative to loops)
 // =========================================
 
-public int factorial_recursive(int n) {
+int factorial_recursive(int n) {
     if (n <= 1) {
         return 1;
     }
@@ -89,7 +89,7 @@ public int factorial_recursive(int n) {
 }
 
 // Fibonacci - exponential recursion
-public int fibonacci(int n) {
+int fibonacci(int n) {
     if (n <= 1) {
         return n;
     }
@@ -100,12 +100,12 @@ public int fibonacci(int n) {
 // 6. STATE MUTATION (Memory operations)
 // =========================================
 
-public void increment_global() {
+void increment_global() {
     mut global_counter;
     global_counter = global_counter + 1;
 }
 
-public int get_global() {
+int get_global() {
     return global_counter;
 }
 
@@ -113,11 +113,11 @@ public int get_global() {
 // 7. ARRAYS (Indexed memory access)
 // =========================================
 
-public int array_sum(int[] arr, int length) {
+int array_sum(&[int] arr) {
     int mut sum = 0;
     int mut i = 0;
 
-    while (i < length) {
+    while (i < arr.length) {
         sum = sum + arr[i];
         i = i + 1;
     }
@@ -125,10 +125,10 @@ public int array_sum(int[] arr, int length) {
     return sum;
 }
 
-public void array_fill(int[] mut arr, int length, int value) {
+void array_fill(&!int[] arr, int value) {
     int mut i = 0;
 
-    while (i < length) {
+    while (i < arr.length) {
         arr[i] = value;
         i = i + 1;
     }
@@ -144,29 +144,29 @@ struct Stack {
     int top
 }
 
-public Stack stack_new() {
+Stack stack_new() {
     return Stack {
         data: {0},  // Zero-initialized
         top: 0
     };
 }
 
-public void stack_push(&!Stack stack, int value) {
+void stack_push(&!Stack stack, int value) {
     if (stack.top < 256) {
         stack.data[stack.top] = value;
         stack.top = stack.top + 1;
     }
 }
 
-public int stack_pop(&!Stack stack) {
+SafetyNet<int, StackError> stack_pop(&!Stack stack) {
     if (stack.top > 0) {
         stack.top = stack.top - 1;
         return stack.data[stack.top];
     }
-    return 0;
+    Caught StackError.EmptyStack;
 }
 
-public bool stack_is_empty(&Stack stack) {
+bool stack_is_empty(&Stack stack) {
     return stack.top == 0;
 }
 
@@ -175,7 +175,11 @@ public bool stack_is_empty(&Stack stack) {
 // =========================================
 // Demonstrates complex conditional logic
 
-public int collatz_steps(int n) {
+SafetyNet<int, RuntimeError> collatz_steps(int n) {
+    if (n <= 0) {
+        Caught RuntimeError.InvalidInput;
+    }
+
     int mut steps = 0;
     int mut current = n;
 
@@ -189,7 +193,7 @@ public int collatz_steps(int n) {
 
         // Safety: prevent infinite loop
         if (steps > 10000) {
-            return -1;
+            Caught RuntimeError.TooManySteps;
         }
     }
 
@@ -212,6 +216,11 @@ enum State {
     Halt
 }
 
+enum MachineError {
+    OutOfBounds,
+    InvalidState
+}
+
 struct TuringMachine {
     TapeSymbol[100] tape
     int head
@@ -219,21 +228,17 @@ struct TuringMachine {
     int steps
 }
 
-public TuringMachine tm_new() {
-    var tm = TuringMachine {
+TuringMachine tm_new() {
+    return TuringMachine {
         tape: {TapeSymbol.Zero},
         head: 50,  // Start in middle
         state: State.A,
         steps: 0
     };
-    return tm;
 }
 
-public void tm_step(&!TuringMachine tm) {
-    if (match tm.state {
-        State.Halt => { return; }
-        _ => { false }
-    }) {
+void tm_step(&!TuringMachine tm) {
+    if (tm.state == State.Halt) {
         return;
     }
 
@@ -267,15 +272,10 @@ public void tm_step(&!TuringMachine tm) {
     tm.steps = tm.steps + 1;
 }
 
-public int tm_run(&!TuringMachine tm, int max_steps) {
+int tm_run(&!TuringMachine tm, int max_steps) {
     int mut i = 0;
 
-    while (i < max_steps) {
-        match tm.state {
-            State.Halt => { break; }
-            _ => { }
-        }
-
+    while (i < max_steps && tm.state != State.Halt) {
         tm_step(tm);
         i = i + 1;
     }
@@ -287,7 +287,7 @@ public int tm_run(&!TuringMachine tm, int max_steps) {
 // MAIN: RUN ALL TESTS
 // =========================================
 
-public int main() {
+SafetyNet<(), RuntimeError> main() {
     #println("=== TURING COMPLETENESS TESTS ===\n");
 
     // Test 1: Basic arithmetic
@@ -295,7 +295,11 @@ public int main() {
     #println("   5 + 3 = {}", add(5, 3));
     #println("   10 - 4 = {}", subtract(10, 4));
     #println("   6 * 7 = {}", multiply(6, 7));
-    #println("   20 / 4 = {}\n", divide(20, 4));
+
+    match divide(20, 4) {
+        value => #println("   20 / 4 = {}\n", value),
+        DivideError.DivideByZero => #println("   20 / 0 = Division by zero\n")
+    }
 
     // Test 2: Conditionals
     #println("2. Conditionals:");
@@ -323,31 +327,46 @@ public int main() {
     // Test 6: Arrays
     #println("6. Arrays:");
     int[5] mut numbers = {1, 2, 3, 4, 5};
-    #println("   array sum = {}", array_sum(numbers, 5));
-    array_fill(numbers, 5, 42);
-    #println("   after fill(42) = {}\n", array_sum(numbers, 5));
+    #println("   array sum = {}", array_sum(&numbers));
+
+    array_fill(&!numbers, 42);
+    #println("   after fill(42) = {}\n", array_sum(&numbers));
 
     // Test 7: Stack machine
     #println("7. Stack Machine:");
     var mut stack = stack_new();
-    stack_push(&stack, 10);
-    stack_push(&stack, 20);
-    stack_push(&stack, 30);
-    #println("   pop = {}", stack_pop(&stack));
-    #println("   pop = {}", stack_pop(&stack));
-    #println("   pop = {}\n", stack_pop(&stack));
+    stack_push(&!stack, 10);
+    stack_push(&!stack, 20);
+    stack_push(&!stack, 30);
+
+    match stack_pop(&!stack) {
+        value => #println("   pop = {}", value),
+        StackError.EmptyStack => #println("   pop = Empty stack")
+    }
+    match stack_pop(&!stack) {
+        value => #println("   pop = {}", value),
+        StackError.EmptyStack => #println("   pop = Empty stack")
+    }
+    match stack_pop(&!stack) {
+        value => #println("   pop = {}\n", value),
+        StackError.EmptyStack => #println("   pop = Empty stack\n")
+    }
 
     // Test 8: Complex control flow
     #println("8. Collatz Conjecture:");
-    #println("   collatz(27) takes {} steps\n", collatz_steps(27));
+    match collatz_steps(27) {
+        steps => #println("   collatz(27) takes {} steps\n", steps),
+        RuntimeError.InvalidInput => #println("   collatz() invalid input\n"),
+        RuntimeError.TooManySteps => #println("   collatz() exceeded step limit\n")
+    }
 
     // Test 9: Turing machine
     #println("9. Turing Machine (2-state Busy Beaver):");
     var mut tm = tm_new();
-    var steps = tm_run(&tm, 100);
+    var steps = tm_run(&!tm, 100);
     #println("   Halted after {} steps\n", steps);
 
     #println("=== ALL TESTS COMPLETE ===");
 
-    return 0;
+    return Ok(());
 }
