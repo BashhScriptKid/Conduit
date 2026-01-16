@@ -136,19 +136,6 @@ public static class Preprocessor
         while ((line = @in.ReadLine()) != null)
         {
             string processedLine = line;
-
-            // Special case: Handle main return type
-            if (processedLine.Contains("main("))
-            {
-                // Special Rust's own Main error-handling type
-                // This is usually implicit, but probably necessary to expose, especially during transpilation.
-                string mainReturn = "Result<(), Box<dyn std::error::Error>>";
-                
-                // If they wrote 'int main' or 'int32 main', convert to your internal main type
-                // Adjust the regex to match whatever 'int' alias they might have used
-                processedLine = Regex.Replace(processedLine, @"\b(int|int32)\s+main\(", $"{mainReturn} main(");
-                
-            }
             
             foreach (var key in sortedKeys)
             {
