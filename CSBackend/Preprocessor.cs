@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace CSBackend;
 
 public static class Preprocessor
@@ -28,6 +30,9 @@ public static class Preprocessor
             targetBuffer.CopyTo(sourceBuffer);
         }
 
+        // Pass iterations here
+        RunPass(StripComments);
+        RunPass(ConvertNativeTypeKeyword);
 
         // 3. Final Pass: write sourceBuffer to output
         @out.Flush(); // Ensure output is ready
@@ -36,7 +41,74 @@ public static class Preprocessor
         @out.Flush();
     }
 
-    private static void ConvertNativeTypeKeyword(StreamReader @in, StreamWriter sw)
+    private static void StripComments(StreamReader @in, StreamWriter @out)
+    {
+        string? line;
+        while ((line = @in.ReadLine()) != null)
+        {
+            // Single-line comments
+            @out.WriteLine(Regex.Replace(line, @"//.*", String.Empty));
+            
+            // Multi-line comments
+            @out.WriteLine(Regex.Replace(line, @"/\*.*?\*/", String.Empty));
+        }
+    }
+
+    private static void ConvertNativeTypeKeyword(StreamReader @in, StreamWriter @out)
+    {
+        // Map conduit native types to Rust-like types
+        Dictionary<string, string> types = new()
+        {
+            { "void",        "()" },  // Additional alias
+            { "sbyte",       "i8" },  { "int8",      "i8" },
+            { "byte",        "u8" },  { "uint8",     "u8" },
+            { "short",      "i16" },  { "int16",    "i16" },
+            { "ushort",     "u16" },  { "uint16",   "u16" },
+            { "int",        "i32" },  { "int32",    "i32" },
+            { "uint",       "u32" },  { "uint32",   "u32" },
+            { "long",       "i64" },  { "int64",    "i64" },
+            { "ulong",      "u64" },  { "uint64",   "u64" },
+            { "loong",     "i128" },  { "int128",  "i128" },
+            { "uloong",    "u128" },  { "uint128", "u128" },
+            { "archint",  "isize" },
+            { "uarchint", "usize" },
+            { "float",     "f32"  },
+            { "double",    "f64"  }
+        };
+        
+        // Sort by length to avoid partial match-replacements (long vs loong)
+        var sortedKeys = types.Keys.OrderByDescending(k => k.Length).ToList();
+
+
+        string? line;
+        while ((line = @in.ReadLine()) != null)
+        {
+            string processedLine = line;
+
+            // Special case: Handle main return type
+            if (processedLine.Contains("main("))
+            {
+                // Special Rust's own Main error-handling type
+                // This is usually implicit, but probably necessary to expose, especially during transpilation.
+                string mainReturn = "Result<(), Box<dyn std::error::Error>>";
+                
+                // If they wrote 'int main' or 'int32 main', convert to your internal main type
+                // Adjust the regex to match whatever 'int' alias they might have used
+                processedLine = Regex.Replace(processedLine, @"\b(int|int32)\s+main\(", $"{mainReturn} main(");
+                
+                @out.WriteLine(processedLine);
+                continue;
+            }
+            
+            foreach (var key in sortedKeys)
+            {
+                processedLine = Regex.Replace(processedLine, $@"\b{key}\b", types[key]);
+            }
+            @out.WriteLine(processedLine);
+        }
+    }
+
+    private static void ConvertNativeSyntax(StreamReader @in, StreamWriter @out)
     {
         
     }
