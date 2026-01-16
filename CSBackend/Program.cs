@@ -5,6 +5,16 @@ namespace CSBackend;
 
 public static class ConduitProgram
 {
+    private const bool VERBOSE = true;
+
+    internal static void Log(string message)
+    {
+        if (VERBOSE)
+        {
+            Console.WriteLine($"[Program] {message}");
+        }
+    }
+
     private static void Main(string[] args)
     {
         if (args.Length < 2)
@@ -46,8 +56,6 @@ public static class ConduitProgram
             if (!File.Exists(input))
                 throw new FileNotFoundException($"Input file '{input}' not found.");
             
-            StreamReader inputFile = new(input);
-            
             (string defaultDir, string extension, string? label) = compileType switch
             {
                 "core"            => (SpecTestEnvPath.Root.Core, ".ccndt", "Core"),
@@ -68,12 +76,15 @@ public static class ConduitProgram
             outputFilename += extension;
                 
             string finalOutPath = Path.Combine(directory, outputFilename);
+            
+            Log($"Processing: Input={input}, Type={compileType}, Output={finalOutPath}");
 
             Transpile(inputPath, compileType, finalOutPath);
         }
 
         void Transpile(string inputPath, string compileTarget, string finalOutPath)
         {
+            Log($"Transpiling {inputPath} to {compileTarget} target. Final path: {finalOutPath}");
             // 1. Preprocess to Core (Always happens)
             string corePath = Path.ChangeExtension(finalOutPath, ".ccndt");
             
@@ -88,6 +99,7 @@ public static class ConduitProgram
 
             // 2. Transpile to Rust
             string rustPath = Path.ChangeExtension(finalOutPath, ".rs");
+            Log($"Generating Rust code at {rustPath}");
             using (var coreIn = new StreamReader(corePath))
             using (var rustOut = new StreamWriter(rustPath))
             {
@@ -99,6 +111,7 @@ public static class ConduitProgram
             // 3. Compile Binary (via CLI)
             if (compileTarget == "binary")
             {
+                Log("Starting binary compilation");
                 // Check rustc is installed and is a valid version
                 Console.Write("Checking for rustc... ");
 
@@ -146,11 +159,13 @@ public static class ConduitProgram
                 if (process.ExitCode != 0)
                 {
                     string errors = process.StandardError.ReadToEnd();
+                    Log("Compilation FAILED");
                     Console.WriteLine("Compilation Error:");
                     Console.WriteLine(errors);
                 }
                 else
                 {
+                    Log("Compilation SUCCESS");
                     Console.WriteLine("Successfully compiled to binary.");
                 }
             }
