@@ -170,13 +170,13 @@ public static class Preprocessor
         {
             string p = line;
             // &!var -> &mut-var
-            p = Regex.Replace(p, @"&!([a-zA-Z_]\w*)", @"&mut-$1");
+            p = Regex.Replace(p, $@"&!({IdentifierRegex.@this})", $@"&mut-$1");
             // &var -> &-var
-            p = Regex.Replace(p, @"&([a-zA-Z_]\w*)", @"&-$1");
+            p = Regex.Replace(p, $@"&({IdentifierRegex.@this})", $@"&-$1");
             // *!var -> *mut-var
-            p = Regex.Replace(p, @"\*!([a-zA-Z_]\w*)", @"*mut-$1");
+            p = Regex.Replace(p, $@"\*!({IdentifierRegex.@this})", $@"*mut-$1");
             // *var -> *-var
-            p = Regex.Replace(p, @"\*([a-zA-Z_]\w*)", @"*-$1");
+            p = Regex.Replace(p, $@"\*({IdentifierRegex.@this})", $@"*-$1");
                 
             @out.WriteLine(p);
         }
@@ -191,7 +191,7 @@ public static class Preprocessor
             // Special case for asm first
             p = p.Replace("#asm", "std::arch::asm!");
             // General macros: #name -> name!
-            p = Regex.Replace(p, @"#([a-zA-Z_]\w*)", @"$1!");
+            p = Regex.Replace(p, $@"#({IdentifierRegex.@this})", $@"$1!");
                 
             @out.WriteLine(p);
         }
