@@ -1,95 +1,165 @@
 ﻿
-namespace CSBackend
-{
+using System.Diagnostics;
 
-    // For prototyping environment only
-    public static class SpecTestEnvPath
-    {
-        // Now 'Root' is an object that acts like a string
-        public static PathWrapper Root { get; } = new(Path.GetFullPath("./Spec_test"));
-
-        public class PathWrapper(string path)
-        {
-            // ReSharper disable once InconsistentNaming
-            private readonly string _path = path;
-
-            // The "extensions" move inside this wrapper
-            public string CoreRef => Path.Combine(_path, "ccndt_out");
-            public string Core => Path.Combine(_path, "ccndt_gen");
-            public string RustRef => Path.Combine(_path, "rs_out");
-            public string Rust => Path.Combine(_path, "rs_gen");
-            public string Binary => Path.Combine(_path, "bin_gen");
-            public string ConduitRef => Path.Combine(_path, "cndt_in");
-
-            // The magic: implicit conversion to string
-            public static implicit operator string(PathWrapper pw) => pw._path;
-            public override string ToString() => _path;
-        }
-    }
+namespace CSBackend;
 
 public static class ConduitProgram
+{
+    private static void Main(string[] args)
     {
-        private static void Main(string[] args)
+        if (args.Length < 2)
         {
-            if (args.Length < 2)
-            {
-                Console.WriteLine("Usage: CSBackend <out_type> <input> <output (optional)>");
-                Console.WriteLine("Options for out_type: core, rs/rust, binary/bin");
+            Console.WriteLine("Usage: CSBackend <out_type> <input> <output (optional)>");
+            Console.WriteLine("Options for out_type: core, rs/rust, binary/bin");
 
+            return;
+        }
+        
+
+        string outType = args[0]
+            .ToLower();
+
+        string inputPath = args[1];
+
+        string outputPath = String.Empty;
+        if (args.Length >= 3)
+            outputPath = args[2];
+        
+        // Manipulate output path
+        string outputFilename = Path.GetFileName(outputPath);
+        outputPath = Path.GetDirectoryName(outputPath) ?? "";
+        
+        if (string.IsNullOrEmpty(outputFilename))
+            outputFilename = Path.GetFileNameWithoutExtension(inputPath);
+
+        try
+        {
+            Process(outType, inputPath, outputPath);
+        }
+        catch (NotImplementedException ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        
+        void Process(string compileType, string input, string output)
+        {
+            if (!File.Exists(input))
+                throw new FileNotFoundException($"Input file '{input}' not found.");
+            
+            StreamReader inputFile = new(input);
+            
+            (string defaultDir, string extension, string? label) = compileType switch
+            {
+                "core"            => (SpecTestEnvPath.Root.Core, ".ccndt", "Core"),
+                "rs" or "rust"    => (SpecTestEnvPath.Root.Rust, ".rs", "Rust"),
+                "binary" or "bin" => (SpecTestEnvPath.Root.Binary, ".bin", "Binary"),
+                _                 => (SpecTestEnvPath.Root, String.Empty, null)
+            };
+            
+            if (label == null)
+            {
+                Console.WriteLine($"Error: Invalid out_type '{compileType}'.");
+                Console.WriteLine("Supported types: core, rs/rust, binary/bin");
                 return;
             }
-            
 
-            string outType = args[0]
-                .ToLower();
-
-            string inputPath = args[1];
-
-            string outputPath = String.Empty;
-            if (args.Length >= 3)
-                outputPath = args[2];
-            
-            // Manipulate output path
-            string outputFilename = Path.GetFileName(outputPath);
-            outputPath = Path.GetDirectoryName(outputPath) ?? "";
-            
-            if (string.IsNullOrEmpty(outputFilename))
-                outputFilename = Path.GetFileNameWithoutExtension(inputPath);
-
-            try
-            {
-                Process(outType, inputPath, outputPath);
-            }
-            catch (NotImplementedException ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
-            
-            void Process(string compileType, string input, string output)
-            {
-                (string defaultDir, string extension, string? label) = compileType switch
-                {
-                    "core"            => (SpecTestEnvPath.Root.Core, ".ccndt", "Core"),
-                    "rs" or "rust"    => (SpecTestEnvPath.Root.Rust, ".rs", "Rust"),
-                    "binary" or "bin" => (SpecTestEnvPath.Root.Binary, ".bin", "Binary"),
-                    _                 => (SpecTestEnvPath.Root, String.Empty, null)
-                };
+            // 3. Execute the common path logic
+            string directory = string.IsNullOrEmpty(outputPath) ? defaultDir : outputPath;
+            outputFilename += extension;
                 
-                if (label == null)
+            string finalOutPath = Path.Combine(directory, outputFilename);
+
+            Transpile(inputPath, compileType, finalOutPath);
+        }
+
+        void Transpile(string inputPath, string compileTarget, string finalOutPath)
+        {
+            // 1. Preprocess to Core (Always happens)
+            string corePath = Path.ChangeExtension(finalOutPath, ".ccndt");
+            
+            using (var input = new StreamReader(inputPath))
+            using (var coreOut = new StreamWriter(corePath))
+            {
+                Preprocessor.PreprocessToCore(input, coreOut);
+            } // coreOut is FLUSHED and CLOSED here automatically
+
+            if (compileTarget == "core") 
+                return;
+
+            // 2. Transpile to Rust
+            string rustPath = Path.ChangeExtension(finalOutPath, ".rs");
+            using (var coreIn = new StreamReader(corePath))
+            using (var rustOut = new StreamWriter(rustPath))
+            {
+                TranspileToRust(coreIn, rustOut);
+            }
+
+            if (compileTarget == "rust") return;
+
+            // 3. Compile Binary (via CLI)
+            if (compileTarget == "binary")
+            {
+                // Check rustc is installed and is a valid version
+                Console.Write("Checking for rustc... ");
+
+                using var processChk = System.Diagnostics.Process.Start(new ProcessStartInfo
                 {
-                    Console.WriteLine($"Error: Invalid out_type '{compileType}'.");
-                    Console.WriteLine("Supported types: core, rs/rust, binary/bin");
+                    FileName = "rustc",
+                    Arguments = "--version",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true
+                });
+                    
+                processChk?.WaitForExit();
+
+                if (processChk == null || processChk.ExitCode != 0)
+                {
+                    Console.WriteLine("FAILED. rustc not found in PATH.");
                     return;
                 }
-
-                // 3. Execute the common path logic
-                string directory = string.IsNullOrEmpty(outputPath) ? defaultDir : outputPath;
-                outputFilename += extension;
                     
-                string finalOutPath = Path.Combine(directory, outputFilename);
+                string version = processChk.StandardOutput.ReadToEnd().Trim();
+                Console.WriteLine($"OK ({version})");
+                
+                // Compile time, yay
+                Console.WriteLine($"[Compiling] {rustPath} -> {finalOutPath}");
 
-                throw new NotImplementedException($"{label} output generation is not implemented, but it will be saved as: {finalOutPath}");
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "rustc",
+                    // -o specifies the output binary name
+                    Arguments = $"\"{rustPath}\" -o \"{finalOutPath}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = System.Diagnostics.Process.Start(startInfo);
+
+                if (process == null) 
+                    return;
+
+                process.WaitForExit();
+
+                if (process.ExitCode != 0)
+                {
+                    string errors = process.StandardError.ReadToEnd();
+                    Console.WriteLine("Compilation Error:");
+                    Console.WriteLine(errors);
+                }
+                else
+                {
+                    Console.WriteLine("Successfully compiled to binary.");
+                }
             }
         }
+
+    }
+
+    private static void TranspileToRust(StreamReader coreOutput, StreamWriter rustOutput)
+    {
+        throw new NotImplementedException("Rust transpilation not yet implemented. Hence binary output is also not possible.");
     }
 }
