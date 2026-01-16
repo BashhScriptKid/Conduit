@@ -110,6 +110,34 @@ public static class Preprocessor
 
     private static void ConvertNativeSyntax(StreamReader @in, StreamWriter @out)
     {
-        
+        string? line;
+        while ((line = @in.ReadLine()) != null)
+        {
+            string p = line;
+
+            // 1. Immutable reference: '&var' -> '&-var'
+            // Matches '&' followed by a valid identifier
+            p = Regex.Replace(p, @"&([a-zA-Z_]\w*)", @"&-$1");
+
+            // 2. Mutable reference: '&!var' -> '&mut-var'
+            p = Regex.Replace(p, @"&!([a-zA-Z_]\w*)", @"&mut-$1");
+
+            // 3. Immutable pointer: '*var' -> '*-var'
+            p = Regex.Replace(p, @"\*([a-zA-Z_]\w*)", @"*-$1");
+
+            // 4. Mutable pointer: '*!var' -> '*mut-var'
+            p = Regex.Replace(p, @"\*!([a-zA-Z_]\w*)", @"*mut-$1");
+
+            // 5. Macro call: '#macro' -> 'macro!'
+            // Matches '#' followed by identifier, moves '!' to the end
+            p = Regex.Replace(p, @"#([a-zA-Z_]\w*)", @"$1!");
+
+            // 6. Inline assembly: '#asm' -> 'std::arch::asm!'
+            // Not sure if macro syntax is already converted; better do both cases
+            p = p.Replace("asm!", "std::arch::asm!");
+            p = p.Replace("#asm", "std::arch::asm!");
+
+            @out.WriteLine(p);
+        }
     }
 }
