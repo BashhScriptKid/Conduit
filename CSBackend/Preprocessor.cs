@@ -33,6 +33,7 @@ public static class Preprocessor
         // Pass iterations here
         RunPass(StripComments);
         RunPass(ConvertNativeTypeKeyword);
+        RunPass(ConvertNativeSyntax);
 
         // 3. Final Pass: write sourceBuffer to output
         @out.Flush(); // Ensure output is ready
@@ -46,11 +47,11 @@ public static class Preprocessor
         string? line;
         while ((line = @in.ReadLine()) != null)
         {
-            // Single-line comments
-            @out.WriteLine(Regex.Replace(line, @"//.*", String.Empty));
-            
-            // Multi-line comments
-            @out.WriteLine(Regex.Replace(line, @"/\*.*?\*/", String.Empty));
+            // Process the line through both replacements before writing it once
+            string p = Regex.Replace(line, @"//.*", string.Empty);
+            p = Regex.Replace(p, @"/\*.*?\*/", string.Empty);
+                
+            @out.WriteLine(p);
         }
     }
 
@@ -143,7 +144,8 @@ public static class Preprocessor
             {
                 p = p.Replace("asm!", "std::arch::asm!");
             }
-
+            
+            @out.WriteLine(p);
         }
     }
 }
