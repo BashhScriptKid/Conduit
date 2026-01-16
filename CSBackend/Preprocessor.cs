@@ -7,7 +7,9 @@ public static class Preprocessor
 
     public static void PreprocessToCore(StreamReader @in, StreamWriter @out)
     {
-        ConduitProgram.Log("Starting PreprocessToCore");
+        void Log(string message) => ConduitProgram.Log(message, "Preprocessor");
+        
+        Log("Starting PreprocessToCore");
         using MemoryStream sourceBuffer = new();
         using MemoryStream targetBuffer = new();
 
@@ -16,7 +18,7 @@ public static class Preprocessor
 
         void RunPass(Action<StreamReader, StreamWriter> passAction)
         {
-            ConduitProgram.Log($"Running pass: {passAction.Method.Name}");
+            Log($"Running pass: {passAction.Method.Name}");
             sourceBuffer.Position = 0;
             targetBuffer.SetLength(0);
         
@@ -31,7 +33,7 @@ public static class Preprocessor
             sourceBuffer.SetLength(0);
             targetBuffer.Position = 0;
             targetBuffer.CopyTo(sourceBuffer);
-            ConduitProgram.Log($"Pass {passAction.Method.Name} completed. Buffer size: {sourceBuffer.Length} bytes");
+            Log($"Pass {passAction.Method.Name} completed. Buffer size: {sourceBuffer.Length} bytes");
         }
 
         // Pass iterations here
@@ -49,12 +51,12 @@ public static class Preprocessor
         RunPass(UnmaskQuotes);
 
         // 3. Final Pass: write sourceBuffer to output
-        ConduitProgram.Log("Finalizing output");
+        Log("Finalizing output");
         @out.Flush(); // Ensure output is ready
         sourceBuffer.Position = 0;
         sourceBuffer.CopyTo(@out.BaseStream);
         @out.Flush();
-        ConduitProgram.Log("PreprocessToCore completed");
+        Log("PreprocessToCore completed");
     }
 
     private static void StripComments(StreamReader @in, StreamWriter @out)

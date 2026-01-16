@@ -18,11 +18,11 @@ public static class ConduitProgram
     
     private const bool VERBOSE = true;
 
-    internal static void Log(string message)
+    internal static void Log(string message, string header = "Program")
     {
         if (VERBOSE)
         {
-            Console.WriteLine($"[Program] {message}");
+            Console.WriteLine($"[{header}] {message}");
         }
     }
 
