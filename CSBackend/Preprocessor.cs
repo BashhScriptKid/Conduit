@@ -46,6 +46,7 @@ public static partial class Preprocessor
         
         RunPass(StripComments);
         
+        RunPass(DevalidateRustTypes);
         RunPass(ConvertNativeTypeKeyword);
         
         // Convert native syntax
@@ -153,7 +154,7 @@ public static partial class Preprocessor
         string? line;
         while ((line = @in.ReadLine()) != null)
         {
-            string maskedLine = StringLiteralRegex.Replace(line, match =>
+            string maskedLine = LiteralRegex.Replace(line, match =>
             {
                 string placeholder = $"__STRING_{_maskedStrings.Count}__";
                 _maskedStrings[placeholder] = match.Value;
@@ -178,6 +179,28 @@ public static partial class Preprocessor
     
         // Critical: always clear after unmasking
         _maskedStrings.Clear();
+    }
+    
+    
+    private static void DevalidateRustTypes(StreamReader @in, StreamWriter @out)
+    {
+        string[] rustTypes = 
+        [
+            "let", "isize", "usize", "i8", "u8", "i16", "u16", 
+            "i32", "u32", "i64", "u64", "i128", "u128", "f32", "f64"
+        ];
+
+        // Join types into a pattern: \b(let|isize|usize|...)\b
+        string pattern = $@"\b({string.Join("|", rustTypes.OrderByDescending(t => t.Length))})\b";
+        Regex devalidateRegex = new(pattern, RegexOptions.Compiled);
+
+        string? line;
+        while ((line = @in.ReadLine()) != null)
+        {
+            // Use a MatchEvaluator to inject the specific type name into the replacement
+            string processedLine = devalidateRegex.Replace(line, m => $"__ILLEGAL_RS_{m.Value}_TYPE__");
+            @out.WriteLine(processedLine);
+        }
     }
 
     private static void ConvertNativeTypeKeyword(StreamReader @in, StreamWriter @out)
