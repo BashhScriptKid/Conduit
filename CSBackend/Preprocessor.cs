@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using CSBackend.Transpiler;
 
 namespace CSBackend;
 
@@ -8,7 +9,6 @@ public static partial class Preprocessor
     // This preprocessor performs purely lexical normalization.
     // It does NOT validate syntax, lifetimes, scopes, or semantics.
     // Any correctness errors are deferred to Rust or later compiler stages.
-
 
     public static void PreprocessToCore(StreamReader @in, StreamWriter @out)
     {
@@ -192,6 +192,7 @@ public static partial class Preprocessor
         // Map conduit native types to Rust-like types
         Dictionary<string, string> types = new()
         {
+            { "var",        "let" },
             { "archint",  "isize" },
             { "uarchint", "usize" },   // Additional alias
             { "sbyte",       "i8" },  { "int8",      "i8" },
@@ -277,10 +278,18 @@ public static partial class Preprocessor
         {
             string p = line;
             // Special case for asm first
-            p = p.Replace("#asm", "std::arch::asm!");
-            // General macros: #name -> name!
-            p = Regex.Replace(p, $@"#({IdentifierRegex.@this})", $@"$1!");
-                
+            var specialMacros = new Dictionary<string, string>
+            {
+                { "#asm", "std::arch::asm!" }
+            };
+
+            foreach (var (from, to) in specialMacros)
+            {
+                p = p.Replace(from, to);
+            }
+
+            // General macros (but don't match already-processed ones)
+            p = Regex.Replace(p, @"#(\w+)(?!!)", "$1!");  // Negative lookahead for !
             @out.WriteLine(p);
         }
     }
