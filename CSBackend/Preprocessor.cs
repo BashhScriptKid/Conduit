@@ -207,8 +207,10 @@ public static partial class Preprocessor
     {
         // Map conduit native types to Rust-like types
         Dictionary<string, string> types = new()
-        {
-            { "var",        "let" },
+        { 
+            // Intentionally skipped
+            //{ "void",         "()"},
+            //{ "var",        "let" },
             { "archint",  "isize" },
             { "uarchint", "usize" },   // Additional alias
             { "sbyte",       "i8" },  { "int8",      "i8" },
