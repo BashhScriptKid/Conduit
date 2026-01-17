@@ -322,22 +322,24 @@ public static partial class Preprocessor
     private static void ConvertMacros(StreamReader @in, StreamWriter @out)
     {
         string? line;
+        int lineNumber = 0;
         while ((line = @in.ReadLine()) != null)
         {
+            lineNumber++;
             string p = line;
-            // Special case for asm first
-            var specialMacros = new Dictionary<string, string>
-            {
-                { "#asm", "std::arch::asm!" }
-            };
 
-            foreach (var (from, to) in specialMacros)
+            // 1. Detect illegal direct Rust macro usage: "identifier!"
+            // We look for a word followed by ! that ISN'T preceded by #
+            var illegalMatch = Regex.Match(p, @"(?<!#)\b\w+!");
+            if (illegalMatch.Success)
             {
-                p = p.Replace(from, to);
+                throw new InvalidOperationException(
+                    $"Unexpected token '{illegalMatch.Value}' at line {lineNumber}. " +
+                    "Direct Rust macro syntax is forbidden. Use the '#' prefix (e.g., #print) to maintain Conduit normalization.");
             }
 
-            // General macros (but don't match already-processed ones)
-            p = Regex.Replace(p, @"#(\w+)(?!!)", "$1!");  // Negative lookahead for !
+            p = Regex.Replace(p, @"#(\w+)(?!!)", "$1!");
+                
             @out.WriteLine(p);
         }
     }
