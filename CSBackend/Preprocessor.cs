@@ -232,8 +232,38 @@ public static partial class Preprocessor
 
 
         string? line;
+        int lineNumber = 0;
         while ((line = @in.ReadLine()) != null)
         {
+            lineNumber++;
+            if (line.Contains("__ILLEGAL_RS_"))
+            {
+                var match = Regex.Match(line, @"__ILLEGAL_RS_(\w+)_TYPE__");
+                if (match.Success)
+                {
+                    string rustType = match.Groups[1].Value;
+        
+                    // Create reverse mapping (Conduit ← Rust)
+                    var reverseTypes = new Dictionary<string, string>();
+                    foreach (var kvp in types)
+                    {
+                        // Handle cases where multiple Conduit types map to same Rust type
+                        if (!reverseTypes.ContainsKey(kvp.Value))
+                            reverseTypes[kvp.Value] = kvp.Key;
+                    }
+
+                    string suggestedConduitType = reverseTypes.TryGetValue(rustType, out var conduitType) 
+                        ? conduitType 
+                        : "a Conduit equivalent";
+
+                    throw new InvalidOperationException(
+                        $"On line {lineNumber}:\n" +
+                        $"    {line}\n\n"+
+                        $"Use of raw Rust type '{rustType}' is not allowed in Conduit source.\n" +
+                        $"Consider using '{suggestedConduitType}' instead.");
+                }
+            }
+            
             string processedLine = line;
             
             foreach (var key in sortedKeys)
