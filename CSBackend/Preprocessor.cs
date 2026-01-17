@@ -59,17 +59,7 @@ public static partial class Preprocessor
         Log("Finalizing output");
         @out.Flush(); // Ensure output is ready
         sourceBuffer.Position = 0;
-
-        if (@out.BaseStream == Console.OpenStandardOutput())
-        {
-            ConsoleColor? previousColor = Console.ForegroundColor;
-            Console.ForegroundColor = ConsoleColor.Green;
-            string source = new StreamReader(sourceBuffer).ReadToEnd();
-            Console.Write(source);
-            Console.ForegroundColor = previousColor.Value;
-        }
-        else
-            sourceBuffer.CopyTo(@out.BaseStream);
+        sourceBuffer.CopyTo(@out.BaseStream);
         
         @out.Flush();
         Log("PreprocessToCore completed");
@@ -147,7 +137,10 @@ public static partial class Preprocessor
         
     }
     
-    private static readonly Regex StringLiteralRegex = new(@"""([^""\\]|\\.)*""", RegexOptions.Compiled);
+    private static readonly Regex LiteralRegex = new(
+        @"""([^""\\]|\\.)*""|'([^'\\]|\\.)*'", 
+        RegexOptions.Compiled
+    );
     
     static readonly Dictionary<string, string> _maskedStrings = new();
     
