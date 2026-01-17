@@ -53,6 +53,7 @@ public static partial class Preprocessor
         RunPass(StripStorageQualifiers);
         RunPass(ConvertReferencesAndPointers);
         RunPass(ConvertMacros);
+        RunPass(ReplaceAPIs);
         
         RunPass(UnmaskQuotes);
 
@@ -341,6 +342,27 @@ public static partial class Preprocessor
             p = Regex.Replace(p, @"#(\w+)(?!!)", "$1!");
                 
             @out.WriteLine(p);
+        }
+    }
+
+    private static void ReplaceAPIs(StreamReader @in, StreamWriter @out)
+    {
+        string? line;
+
+        Dictionary<string, string> replacements = new()
+        {
+            { "asm!", "std::arch::asm!" }
+        };
+        while ((line = @in.ReadLine()) != null)
+        {                
+            string processedLine = line;
+            foreach (var (key, value) in replacements)
+            {
+                // Using \b and escaping the ! ensures we only hit the exact macro
+                string escapedKey = Regex.Escape(key);
+                processedLine = Regex.Replace(processedLine, $@"\b{escapedKey}", value);
+            }
+
         }
     }
 }
