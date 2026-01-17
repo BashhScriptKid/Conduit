@@ -46,12 +46,20 @@ public static class ConduitProgram
         if (args.Length >= 3)
             outputPath = args[2];
         
-        // Manipulate output path
-        string outputFilename = Path.GetFileName(outputPath);
-        outputPath = Path.GetDirectoryName(outputPath) ?? "";
+        Log("Got arguments: out_type=" + outType + ", input=" + inputPath + ", output=" + outputPath + "");
         
-        if (string.IsNullOrEmpty(outputFilename))
-            outputFilename = Path.GetFileNameWithoutExtension(inputPath);
+        // Manipulate output path
+        string outputFilename = "";
+        
+        if (outputPath != "stdout")
+        {
+            outputFilename = Path.GetFileName(outputPath);
+
+            outputPath = Path.GetDirectoryName(outputPath) ?? "";
+
+            if (string.IsNullOrEmpty(outputFilename))
+                outputFilename = Path.GetFileNameWithoutExtension(inputPath);
+        }
 
         try
         {
@@ -83,11 +91,19 @@ public static class ConduitProgram
             }
 
             // 3. Execute the common path logic
-            string directory = string.IsNullOrEmpty(outputPath) ? defaultDir : outputPath;
-            outputFilename += extension;
-                
-            string finalOutPath = Path.Combine(directory, outputFilename);
-            
+            string finalOutPath;
+            if (output != "stdout")
+            {
+                string directory = string.IsNullOrEmpty(outputPath) ? defaultDir : outputPath;
+                outputFilename += extension;
+
+                finalOutPath = Path.Combine(directory, outputFilename);
+            }
+            else
+            {
+                finalOutPath = "stdout";
+            }
+
             Log($"Processing: Input={input}, Type={compileType}, Output={finalOutPath}");
 
             Transpile(inputPath, compileType, finalOutPath);
@@ -95,6 +111,38 @@ public static class ConduitProgram
 
         void Transpile(string inputPath, string compileTarget, string finalOutPath)
         {
+            // Handle stdout special case immediately
+            if (finalOutPath == "stdout")
+            {
+                Log($"Transpiling {inputPath} to {compileTarget} target (stdout)");
+        
+                if (compileTarget == "core")
+                {
+                    using var input = new StreamReader(inputPath);
+                    Preprocessor.PreprocessToCore(input, new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
+                    return;
+                }
+
+                if (compileTarget == "rust" || compileTarget == "rs")
+                {
+                    // Preprocess to memory, then transpile to stdout
+                    using var input = new StreamReader(inputPath);
+                    using var coreStream = new MemoryStream();
+                    using var coreWriter = new StreamWriter(coreStream);
+            
+                    Preprocessor.PreprocessToCore(input, coreWriter);
+                    coreWriter.Flush();
+            
+                    coreStream.Position = 0;
+                    using var coreReader = new StreamReader(coreStream);
+                    TranspileToRust(coreReader, new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
+                    return;
+                }
+
+                Console.WriteLine("Error: stdout output only supported for 'core' and 'rust' targets");
+                return;
+            }
+            
             Log($"Transpiling {inputPath} to {compileTarget} target. Final path: {finalOutPath}");
             // 1. Preprocess to Core (Always happens)
             string corePath = Path.ChangeExtension(finalOutPath, ".ccndt");
@@ -185,8 +233,16 @@ public static class ConduitProgram
     }
 
     // TODO: Move this function to another file before unstubbing
-    private static void TranspileToRust(StreamReader coreOutput, StreamWriter rustOutput)
+    private static void TranspileToRust(StreamReader @in, StreamWriter @out)
     {
         throw new NotImplementedException("Rust transpilation not yet implemented. Hence binary output is also not possible.");
+
+        CoreToAST(@in, @out);
+
+    }
+
+    private static void CoreToAST(StreamReader @in, StreamWriter @out)
+    {
+        throw new NotImplementedException();
     }
 }

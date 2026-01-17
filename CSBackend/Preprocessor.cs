@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace CSBackend;
 
-public static class Preprocessor
+public static partial class Preprocessor
 {
     // This preprocessor performs purely lexical normalization.
     // It does NOT validate syntax, lifetimes, scopes, or semantics.
@@ -59,7 +59,18 @@ public static class Preprocessor
         Log("Finalizing output");
         @out.Flush(); // Ensure output is ready
         sourceBuffer.Position = 0;
-        sourceBuffer.CopyTo(@out.BaseStream);
+
+        if (@out.BaseStream == Console.OpenStandardOutput())
+        {
+            ConsoleColor? previousColor = Console.ForegroundColor;
+            Console.ForegroundColor = ConsoleColor.Green;
+            string source = new StreamReader(sourceBuffer).ReadToEnd();
+            Console.Write(source);
+            Console.ForegroundColor = previousColor.Value;
+        }
+        else
+            sourceBuffer.CopyTo(@out.BaseStream);
+        
         @out.Flush();
         Log("PreprocessToCore completed");
     }
