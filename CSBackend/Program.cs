@@ -1,5 +1,6 @@
 ﻿
 using System.Diagnostics;
+using CSBackend.Transpiler;
 
 namespace CSBackend;
 
@@ -11,6 +12,7 @@ public static class IdentifierRegex
     
     public const string @this        = alpha; // Default
 }
+
 
 public static class ConduitProgram
 {
@@ -35,7 +37,7 @@ public static class ConduitProgram
 
             return;
         }
-        
+
 
         string outType = args[0]
             .ToLower();
@@ -43,14 +45,15 @@ public static class ConduitProgram
         string inputPath = args[1];
 
         string outputPath = String.Empty;
+
         if (args.Length >= 3)
             outputPath = args[2];
-        
+
         Log("Got arguments: out_type=" + outType + ", input=" + inputPath + ", output=" + outputPath + "");
-        
+
         // Manipulate output path
         string outputFilename = "";
-        
+
         if (outputPath != "stdout")
         {
             outputFilename = Path.GetFileName(outputPath);
@@ -69,12 +72,12 @@ public static class ConduitProgram
         {
             Console.WriteLine(ex.Message);
         }
-        
+
         void Process(string compileType, string input, string output)
         {
             if (!File.Exists(input))
                 throw new FileNotFoundException($"Input file '{input}' not found.");
-            
+
             (string defaultDir, string extension, string? label) = compileType switch
             {
                 "core"            => (SpecTestEnvPath.Root.Core, ".ccndt", "Core"),
@@ -82,16 +85,18 @@ public static class ConduitProgram
                 "binary" or "bin" => (SpecTestEnvPath.Root.Binary, ".bin", "Binary"),
                 _                 => (SpecTestEnvPath.Root, String.Empty, null)
             };
-            
+
             if (label == null)
             {
                 Console.WriteLine($"Error: Invalid out_type '{compileType}'.");
                 Console.WriteLine("Supported types: core, rs/rust, binary/bin");
+
                 return;
             }
 
             // 3. Execute the common path logic
             string finalOutPath;
+
             if (output != "stdout")
             {
                 string directory = string.IsNullOrEmpty(outputPath) ? defaultDir : outputPath;
@@ -115,11 +120,12 @@ public static class ConduitProgram
             if (finalOutPath == "stdout")
             {
                 Log($"Transpiling {inputPath} to {compileTarget} target (stdout)");
-        
+
                 if (compileTarget == "core")
                 {
                     using var input = new StreamReader(inputPath);
                     Preprocessor.PreprocessToCore(input, new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
+
                     return;
                 }
 
@@ -129,40 +135,44 @@ public static class ConduitProgram
                     using var input = new StreamReader(inputPath);
                     using var coreStream = new MemoryStream();
                     using var coreWriter = new StreamWriter(coreStream);
-            
+
                     Preprocessor.PreprocessToCore(input, coreWriter);
                     coreWriter.Flush();
-            
+
                     coreStream.Position = 0;
                     using var coreReader = new StreamReader(coreStream);
-                    TranspileToRust(coreReader, new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
+                    Transpiler.Transpile.ToRust(coreReader, new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
+
                     return;
                 }
 
                 Console.WriteLine("Error: stdout output only supported for 'core' and 'rust' targets");
+
                 return;
             }
-            
+
             Log($"Transpiling {inputPath} to {compileTarget} target. Final path: {finalOutPath}");
+
             // 1. Preprocess to Core (Always happens)
             string corePath = Path.ChangeExtension(finalOutPath, ".ccndt");
-            
+
             using (var input = new StreamReader(inputPath))
             using (var coreOut = new StreamWriter(corePath))
             {
                 Preprocessor.PreprocessToCore(input, coreOut);
             } // coreOut is FLUSHED and CLOSED here automatically
 
-            if (compileTarget == "core") 
+            if (compileTarget == "core")
                 return;
 
             // 2. Transpile to Rust
             string rustPath = Path.ChangeExtension(finalOutPath, ".rs");
             Log($"Generating Rust code at {rustPath}");
+
             using (var coreIn = new StreamReader(corePath))
             using (var rustOut = new StreamWriter(rustPath))
-            {
-                TranspileToRust(coreIn, rustOut);
+            { 
+                Transpiler.Transpile.ToRust(coreIn, rustOut);
             }
 
             if (compileTarget == "rust") return;
@@ -171,6 +181,7 @@ public static class ConduitProgram
             if (compileTarget == "binary")
             {
                 Log("Starting binary compilation");
+
                 // Check rustc is installed and is a valid version
                 Console.Write("Checking for rustc... ");
 
@@ -182,24 +193,28 @@ public static class ConduitProgram
                     CreateNoWindow = true,
                     RedirectStandardOutput = true
                 });
-                    
+
                 processChk?.WaitForExit();
 
                 if (processChk == null || processChk.ExitCode != 0)
                 {
                     Console.WriteLine("FAILED. rustc not found in PATH.");
+
                     return;
                 }
-                    
-                string version = processChk.StandardOutput.ReadToEnd().Trim();
+
+                string version = processChk.StandardOutput.ReadToEnd()
+                    .Trim();
+
                 Console.WriteLine($"OK ({version})");
-                
+
                 // Compile time, yay
                 Console.WriteLine($"[Compiling] {rustPath} -> {finalOutPath}");
 
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = "rustc",
+
                     // -o specifies the output binary name
                     Arguments = $"\"{rustPath}\" -o \"{finalOutPath}\"",
                     RedirectStandardOutput = true,
@@ -210,7 +225,7 @@ public static class ConduitProgram
 
                 using var process = System.Diagnostics.Process.Start(startInfo);
 
-                if (process == null) 
+                if (process == null)
                     return;
 
                 process.WaitForExit();
@@ -230,19 +245,5 @@ public static class ConduitProgram
             }
         }
 
-    }
-
-    // TODO: Move this function to another file before unstubbing
-    private static void TranspileToRust(StreamReader @in, StreamWriter @out)
-    {
-        throw new NotImplementedException("Rust transpilation not yet implemented. Hence binary output is also not possible.");
-
-        CoreToAST(@in, @out);
-
-    }
-
-    private static void CoreToAST(StreamReader @in, StreamWriter @out)
-    {
-        throw new NotImplementedException();
     }
 }
