@@ -362,6 +362,7 @@ public static partial class Preprocessor
                 string escapedKey = Regex.Escape(key);
                 processedLine = Regex.Replace(processedLine, $@"\b{escapedKey}", value);
             }
+            @out.WriteLine(processedLine);
 
         }
     }
