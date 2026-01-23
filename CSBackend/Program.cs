@@ -1,5 +1,4 @@
-﻿﻿
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using CSBackend.Transpiler;
 
 namespace CSBackend;
@@ -170,8 +169,8 @@ public static class ConduitProgram
         void WriteToFile(string path)
         {
             nextBuffer.Position = 0;
-            using var writer = new StreamWriter(path);
-            writer.Write(nextBuffer);
+            using FileStream fileStream = File.Create(path);
+            nextBuffer.CopyTo(fileStream);
         }
 
         void SwapStream()
@@ -183,9 +182,12 @@ public static class ConduitProgram
         
         // 1. Preprocess to Core (Always happens)
         string corePath = Path.ChangeExtension(outPath, ".ccndt");
-        
-        using (var writer = new StreamWriter(nextBuffer))
+
+        using (var writer = new StreamWriter(nextBuffer, leaveOpen: true))
+        {
             Preprocessor.PreprocessToCore(inputStream, writer);
+            writer.Flush();
+        }
 
         if (compileTarget == "core")
         {
@@ -201,7 +203,7 @@ public static class ConduitProgram
         if (compileTarget == "lex")
         {
             using (var reader = new StreamReader(currentBuffer))
-            using (var writer = new StreamWriter(nextBuffer))
+            using (var writer = new StreamWriter(nextBuffer, leaveOpen: true))
                 WriteLexedTokens(reader, writer);
             
             WriteToFile(lexPath);
