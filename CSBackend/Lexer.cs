@@ -65,6 +65,7 @@ public static class Tokens
         
         // Special
         Exclamation, Question,                 // ! ?
+        Newline,
         EndOfFile
     }
 
@@ -256,7 +257,9 @@ public class Lexer
             case '\t':
                 // Ignore non-newline whitespace.
                 return;
+            
             case '\n':
+                AddToken(Tokens.Type.Newline);
                 _Line++;
                 return;
 
@@ -375,7 +378,8 @@ public class Lexer
     /// </summary>
     private void ReadNumber()
     {
-        while (IsDigit(Peek())) Advance();
+        while (IsDigit(Peek()))
+            Advance();
 
         // Fractional part: only if we see ".<digit>".
         if (Peek() == '.' && IsDigit(PeekNext()))

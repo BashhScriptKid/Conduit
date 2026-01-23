@@ -18,6 +18,7 @@ public static class ConduitProgram
 {
     private const bool VERBOSE = true;
     private const string Stdout = "stdout";
+    private const bool EmitNewlinesInLexOutput = true;
 
     internal static void Log(string message, string header = "Program")
     {
@@ -73,7 +74,7 @@ public static class ConduitProgram
             "core"            => (SpecTestEnvPath.Root.Core, ".ccndt", "Core"),
             "rs" or "rust"    => (SpecTestEnvPath.Root.Rust, ".rs", "Rust"),
             "binary" or "bin" => (SpecTestEnvPath.Root.Binary, ".bin", "Binary"),
-            "lex"             => (SpecTestEnvPath.Root.Core, ".lex", "Lex"),
+            "lex"             => (SpecTestEnvPath.Root.Lex, ".lex", "Lex"),
             _                 => (SpecTestEnvPath.Root, string.Empty, null)
         };
 
@@ -125,7 +126,15 @@ public static class ConduitProgram
             if (compileTarget == "lex")
             {
                 using var input = new StreamReader(inPath);
-                WriteLexedTokens(input, WriteToStdout());
+                using var coreStream = new MemoryStream();
+                using var coreWriter = new StreamWriter(coreStream);
+
+                Preprocessor.PreprocessToCore(input, coreWriter);
+                coreWriter.Flush();
+
+                coreStream.Position = 0;
+                using var coreReader = new StreamReader(coreStream);
+                WriteLexedTokens(coreReader, WriteToStdout());
                 return;
             }
 
@@ -167,7 +176,7 @@ public static class ConduitProgram
         string lexPath = Path.ChangeExtension(outPath, ".lex");
         if (compileTarget == "lex")
         {
-            using var input = new StreamReader(inPath);
+            using var input = new StreamReader(corePath);
             using var lexOut = new StreamWriter(lexPath);
             WriteLexedTokens(input, lexOut);
             return;
@@ -261,10 +270,21 @@ public static class ConduitProgram
         var lexer = new Lexer(coreSource);
         List<Tokens.Token> tokens = lexer.LexAll();
 
-        foreach (var token in tokens)
+        for (var i = 0; i < tokens.Count; i++)
         {
+            var token = tokens[i];
+
+            if (token.TokenType == Tokens.Type.Newline) 
+                continue;
+
             string lexeme = EscapeLexeme(token.Lexeme);
-            @out.WriteLine($"{token.Line}\t{token.TokenType}\t\"{lexeme}\"");
+            string lexstring = ($"{token.Line}\t{token.TokenType}\t\"{lexeme}\"");
+
+            bool nextIsNewline = EmitNewlinesInLexOutput
+                                 && i + 1 < tokens.Count // Prevent out of bounds
+                                 && tokens[i + 1].TokenType == Tokens.Type.Newline;
+
+            @out.WriteLine(nextIsNewline ? $"{lexstring}\t ;" : lexstring);
         }
     }
 
