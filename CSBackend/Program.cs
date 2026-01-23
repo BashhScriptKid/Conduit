@@ -160,26 +160,58 @@ public static class ConduitProgram
 
         Log($"Transpiling {inPath} to {compileTarget} target. Final path: {outPath}");
 
+        using var inputStream = new StreamReader(inPath);
+        using var bufferA = new MemoryStream();
+        using var bufferB = new MemoryStream();
+        
+        MemoryStream currentBuffer = bufferA;
+        MemoryStream nextBuffer = bufferB;
+
+        void WriteToFile(string path)
+        {
+            nextBuffer.Position = 0;
+            using var writer = new StreamWriter(path);
+            writer.Write(nextBuffer);
+        }
+
+        void SwapStream()
+        {
+            (currentBuffer, nextBuffer) = (nextBuffer, currentBuffer);
+            nextBuffer.SetLength(0);
+            currentBuffer.Position = 0;
+        }
+        
         // 1. Preprocess to Core (Always happens)
         string corePath = Path.ChangeExtension(outPath, ".ccndt");
-
-        using (var input = new StreamReader(inPath))
-        using (var coreOut = new StreamWriter(corePath))
-        {
-            Preprocessor.PreprocessToCore(input, coreOut);
-        } // coreOut is FLUSHED and CLOSED here automatically
+        
+        using (var writer = new StreamWriter(nextBuffer))
+            Preprocessor.PreprocessToCore(inputStream, writer);
 
         if (compileTarget == "core")
+        {
+            WriteToFile(corePath);
             return;
+        }
+        
+        SwapStream();
         
         // 2. Lex tokens (Always happens)
         string lexPath = Path.ChangeExtension(outPath, ".lex");
+        
         if (compileTarget == "lex")
         {
-            using var input = new StreamReader(corePath);
-            using var lexOut = new StreamWriter(lexPath);
-            WriteLexedTokens(input, lexOut);
+            using (var reader = new StreamReader(currentBuffer))
+            using (var writer = new StreamWriter(nextBuffer))
+                WriteLexedTokens(reader, writer);
+            
+            WriteToFile(lexPath);
             return;
+        }
+
+        List<Tokens.Token> tokens;
+        using (var reader = new StreamReader(currentBuffer))
+        {
+            tokens = WriteLexedTokens(reader);
         }
 
         // 3. Transpile to Rust
