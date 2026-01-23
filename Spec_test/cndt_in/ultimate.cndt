@@ -216,7 +216,7 @@ enum State {
     Halt
 }
 
-enum MachineError {
+enum error MachineError {
     OutOfBounds,
     InvalidState
 }
