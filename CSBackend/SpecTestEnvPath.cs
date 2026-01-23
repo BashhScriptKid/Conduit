@@ -15,6 +15,7 @@ public static class SpecTestEnvPath
         // The "extensions" move inside this wrapper
         public string CoreRef => Path.Combine(_path, "ccndt_out");
         public string Core => Path.Combine(_path, "ccndt_gen");
+        public string Lex => Path.Combine(_path, Core, "lex");
         public string RustRef => Path.Combine(_path, "rs_out");
         public string Rust => Path.Combine(_path, "rs_gen");
         public string Binary => Path.Combine(_path, "bin_gen");

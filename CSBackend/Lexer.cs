@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace CSBackend;
 
 public static class Tokens
@@ -201,5 +199,308 @@ public static class Tokens
 }
 public class Lexer
 {
+    // Source text to scan. This is the preprocessed Conduit "core" input,
+    // but the lexer is robust enough to handle raw source as well.
+    private readonly string _Source;
+
+    // _start marks the beginning of the current token.
+    // _current is the "cursor" pointing at the next char to consume.
+    private int _Start;
+    private int _Current;
+
+    // 1-based line counter for diagnostics.
+    private int _Line;
+
+    // Token collection produced by LexAll.
+    private readonly List<Tokens.Token> _Tokens = new();
+
+    public Lexer(string source)
+    {
+        _Source = string.IsNullOrEmpty(source) ? string.Empty : source;
+        _Start = 0;
+        _Current = 0;
+        _Line = 1;
+    }
+
+    /// <summary>
+    /// Convenience entry point: scan the entire input and return tokens.
+    /// </summary>
+    public List<Tokens.Token> LexAll()
+    {
+        while (!IsAtEnd())
+        {
+            // Each iteration scans exactly one token.
+            _Start = _Current;
+            ScanToken();
+        }
+
+        _Tokens.Add(new Tokens.Token(Tokens.Type.EndOfFile, string.Empty, _Line));
+        return _Tokens;
+    }
+
+    /// <summary>
+    /// Scans a single token based on the current cursor position.
+    /// </summary>
+    private void ScanToken()
+    {
+        char c = Advance();
+
+        switch (c)
+        {
+            // Whitespace handling.
+            case ' ':
+            case '\r':
+            case '\t':
+                // Ignore non-newline whitespace.
+                return;
+            case '\n':
+                _Line++;
+                return;
+
+            // Single-character delimiters and operators.
+            case '(': AddToken(Tokens.Type.LeftParen);    return;
+            case ')': AddToken(Tokens.Type.RightParen);   return;
+            case '{': AddToken(Tokens.Type.LeftBrace);    return;
+            case '}': AddToken(Tokens.Type.RightBrace);   return;
+            case '[': AddToken(Tokens.Type.LeftBracket);  return;
+            case ']': AddToken(Tokens.Type.RightBracket); return;
+            case ';': AddToken(Tokens.Type.Semicolon);    return;
+            case ',': AddToken(Tokens.Type.Comma);        return;
+            case '.': AddToken(Tokens.Type.Dot);          return;
+            case '?': AddToken(Tokens.Type.Question);     return;
+
+            // Potentially multi-character operators.
+            case '+': AddToken(Tokens.Type.Plus); return;
+            case '-': AddToken(Tokens.Type.Minus); return;
+            case '*': AddToken(Tokens.Type.Star); return;
+            case '%': AddToken(Tokens.Type.Percent); return;
+            case '^': AddToken(Tokens.Type.Caret); return;
+
+            case '!':
+                AddToken(Match('=') ? Tokens.Type.BangEqual : Tokens.Type.Exclamation);
+                return;
+
+            case '=':
+                AddToken(Match('=') ? Tokens.Type.EqualEqual : Tokens.Type.Assignment);
+                return;
+
+            case '<':
+                if (Match('<')) { AddToken(Tokens.Type.ShiftLeft); return; }
+                if (Match('=')) { AddToken(Tokens.Type.LessEqual); return; }
+                AddToken(Tokens.Type.Less);
+                return;
+
+            case '>':
+                if (Match('>')) { AddToken(Tokens.Type.ShiftRight); return; }
+                if (Match('=')) { AddToken(Tokens.Type.GreaterEqual); return; }
+                AddToken(Tokens.Type.Greater);
+                return;
+
+            case '&':
+                AddToken(Match('&') ? Tokens.Type.AmpersandAmpersand : Tokens.Type.Ampersand);
+                return;
+
+            case '|':
+                AddToken(Match('|') ? Tokens.Type.PipePipe : Tokens.Type.Pipe);
+                return;
+
+            case ':':
+                AddToken(Match(':') ? Tokens.Type.ColonColon : Tokens.Type.Colon);
+                return;
+
+            case '/':
+                // Support comment skipping as a fallback even if preprocessor already stripped them.
+                if (Match('/'))
+                {
+                    // Line comment: skip until newline or EOF.
+                    while (Peek() != '\n' && !IsAtEnd()) Advance();
+                    return;
+                }
+
+                if (Match('*'))
+                {
+                    // Block comment: skip until closing "*/".
+                    SkipBlockComment();
+                    return;
+                }
+
+                AddToken(Tokens.Type.Slash);
+                return;
+
+            // String literals (single or double quotes).
+            case '"':
+            case '\'':
+                ReadString(c);
+                return;
+        }
+
+        if (IsDigit(c))
+        {
+            ReadNumber();
+            return;
+        }
+
+        if (IsIdentifierStart(c))
+        {
+            ReadIdentifierOrKeyword();
+            return;
+        }
+
+        throw new InvalidOperationException($"Unexpected character '{c}' at line {_Line}.");
+    }
+
+    /// <summary>
+    /// Reads an identifier, then decides if it is a keyword or a user-defined name.
+    /// </summary>
+    private void ReadIdentifierOrKeyword()
+    {
+        while (IsIdentifierPart(Peek())) Advance();
+
+        string text = _Source.Substring(_Start, _Current - _Start);
+
+        if (Tokens.Keywords.TryGetValue(text, out Tokens.Type keywordType))
+        {
+            AddToken(keywordType);
+            return;
+        }
+
+        AddToken(Tokens.Type.Identifier);
+    }
+
+    /// <summary>
+    /// Reads an integer or float literal.
+    /// </summary>
+    private void ReadNumber()
+    {
+        while (IsDigit(Peek())) Advance();
+
+        // Fractional part: only if we see ".<digit>".
+        if (Peek() == '.' && IsDigit(PeekNext()))
+        {
+            Advance(); // Consume '.'
+            while (IsDigit(Peek())) Advance();
+            AddToken(Tokens.Type.FloatLiteral);
+            return;
+        }
+
+        AddToken(Tokens.Type.IntegerLiteral);
+    }
+
+    /// <summary>
+    /// Reads a quoted string literal, supporting simple escape sequences.
+    /// </summary>
+    private void ReadString(char quote)
+    {
+        while (!IsAtEnd())
+        {
+            char c = Advance();
+
+            if (c == '\n')
+            {
+                _Line++;
+            }
+
+            if (c == '\\')
+            {
+                // Skip escaped character so it doesn't terminate the string.
+                if (!IsAtEnd()) Advance();
+                continue;
+            }
+
+            if (c == quote)
+            {
+                AddToken(Tokens.Type.StringLiteral);
+                return;
+            }
+        }
+
+        throw new InvalidOperationException($"Unterminated string literal at line {_Line}.");
+    }
+
+    /// <summary>
+    /// Skip a /* ... */ comment. Tracks newlines for correct line numbers.
+    /// </summary>
+    private void SkipBlockComment()
+    {
+        while (!IsAtEnd())
+        {
+            if (Peek() == '\n')
+            {
+                _Line++;
+                Advance();
+                continue;
+            }
+
+            if (Peek() == '*' && PeekNext() == '/')
+            {
+                Advance(); // '*'
+                Advance(); // '/'
+                return;
+            }
+
+            Advance();
+        }
+
+        throw new InvalidOperationException($"Unterminated block comment at line {_Line}.");
+    }
     
+    /// <summary>
+    /// Consume the next char and advance the cursor.
+    /// </summary>
+    private char Advance()
+    {
+        return _Source[_Current++];
+    }
+
+    /// <summary>
+    /// Adds a token using the lexeme from _start.._current.
+    /// </summary>
+    private void AddToken(Tokens.Type type)
+    {
+        string lexeme = _Source.Substring(_Start, _Current - _Start);
+        _Tokens.Add(new Tokens.Token(type, lexeme, _Line));
+    }
+
+    /// <summary>
+    /// Conditional consume: if next char matches expected, consume it and return true.
+    /// </summary>
+    private bool Match(char expected)
+    {
+        if (IsAtEnd()) return false;
+        if (_Source[_Current] != expected) return false;
+        _Current++;
+        return true;
+    }
+
+    /// <summary>
+    /// Look at current char without consuming it.
+    /// </summary>
+    private char Peek()
+    {
+        if (IsAtEnd()) return '\0';
+        return _Source[_Current];
+    }
+
+    /// <summary>
+    /// Look ahead by one char without consuming it.
+    /// </summary>
+    private char PeekNext()
+    {
+        if (_Current + 1 >= _Source.Length) return '\0';
+        return _Source[_Current + 1];
+    }
+
+    private bool IsAtEnd()
+    {
+        return _Current >= _Source.Length;
+    }
+
+    // Pattern instead of regex for efficiency
+    private static bool IsDigit(char c) => c is >= '0' and <= '9';
+
+    // Conduit identifiers start with alpha or underscore (see IdentifierRegex.alpha + common "_" binding).
+    private static bool IsIdentifierStart(char c) => char.IsLetter(c) || c == '_';
+
+    // Remaining identifier characters allow digits and underscore.
+    private static bool IsIdentifierPart(char c) => char.IsLetterOrDigit(c) || c == '_';
 }
