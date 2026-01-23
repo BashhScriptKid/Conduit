@@ -208,8 +208,10 @@ public class Lexer
     private int _Start;
     private int _Current;
 
-    // 1-based line counter for diagnostics.
+    // 1-based line counter and raw ccndt string for diagnostics.
     private int _Line;
+    
+    private readonly string[] _LinesData;
 
     // Token collection produced by LexAll.
     private readonly List<Tokens.Token> _Tokens = new();
@@ -220,6 +222,7 @@ public class Lexer
         _Start = 0;
         _Current = 0;
         _Line = 1;
+        _LinesData = _Source.Replace("\r\n", "\n").Split('\n');
     }
 
     /// <summary>
@@ -346,7 +349,7 @@ public class Lexer
             return;
         }
 
-        throw new InvalidOperationException($"Unexpected character '{c}' at line {_Line}.");
+        throw new InvalidOperationException($"Unexpected character '{c}' at line {_Line}. \n{_LinesData[_Line - 1]}");
     }
 
     /// <summary>
