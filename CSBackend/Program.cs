@@ -1,4 +1,4 @@
-﻿
+﻿﻿
 using System.Diagnostics;
 using CSBackend.Transpiler;
 
@@ -138,7 +138,7 @@ public static class ConduitProgram
                 return;
             }
 
-            if (compileTarget == "rust" || compileTarget == "rs")
+            if (compileTarget is "rust" or "rs")
             {
                 // Preprocess to memory, then transpile to stdout
                 using var input = new StreamReader(inPath);
