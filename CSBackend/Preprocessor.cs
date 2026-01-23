@@ -66,7 +66,6 @@ public static partial class Preprocessor
         @out.Flush();
         Log("PreprocessToCore completed");
     }
-
     private static void StripComments(StreamReader @in, StreamWriter @out)
     {
         bool inBlock = false;
@@ -303,18 +302,18 @@ public static partial class Preprocessor
             
             // 1. Handle Mutable cases first (Specific matches)
             // '&!var' -> '&mut-var'
-            p = Regex.Replace(p, $"&!({IdentifierRegex.@this})", "&mut-$1");
+            p = Regex.Replace(p, $"&!({IdentifierRegex.@default})", "&mut-$1");
             // '*!var' -> '*mut-var'
-            p = Regex.Replace(p, $@"\*!({IdentifierRegex.@this})", "*mut-$1");
+            p = Regex.Replace(p, $@"\*!({IdentifierRegex.@default})", "*mut-$1");
 
             // 2. Handle Immutable cases (General matches)
             // (?!mut-) means "Match & only if it's NOT followed by the string 'mut-'"
             // This prevents the rule from re-processing what the first rule just changed.
             
             // '&var' -> '&-var' 
-            p = Regex.Replace(p, $"&(?!mut-)({IdentifierRegex.@this})", "&-$1");
+            p = Regex.Replace(p, $"&(?!mut-)({IdentifierRegex.@default})", "&-$1");
             // '*var' -> '*-var'
-            p = Regex.Replace(p, $@"\*(?!mut-)({IdentifierRegex.@this})", "*-$1");
+            p = Regex.Replace(p, $@"\*(?!mut-)({IdentifierRegex.@default})", "*-$1");
                 
             @out.WriteLine(p);
         }

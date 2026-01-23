@@ -7,10 +7,10 @@ namespace CSBackend;
 public static class IdentifierRegex
 {
     public const string alphanumeric = @"[a-zA-Z0-9_]\w*";
-    public const string numeric      = @"[1-9]+";
+    public const string numeric      = @"[0-9]+";
     public const string alpha        = @"[a-zA-Z]\w*";
     
-    public const string @this        = alpha; // Default
+    public const string @default     = alpha;
 }
 
 
