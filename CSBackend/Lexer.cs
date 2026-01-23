@@ -40,9 +40,7 @@ public static class Tokens
         // Type keywords (from Core IR output)
         
         // ReSharper disable InconsistentNaming
-        i8, i16, i32, i64, iSize,
-        u8, u16, u32, u64, uSize,
-                 f32, f64,
+        TypeKeyword,
         // ReSharper restore InconsistentNaming
         
         // Operators
@@ -190,12 +188,7 @@ public static class Tokens
         { "else",   Type.Else   },
         { "while",  Type.While  },
         { "for",    Type.For    },
-        { "return", Type.Return },
-        
-        // Types from preprocessor
-        { "i8", Type.i8 }, { "i16", Type.i16 }, { "i32", Type.i32 }, { "i64", Type.i64 }, { "isize", Type.iSize },
-        { "u8", Type.u8 }, { "u16", Type.u16 }, { "u32", Type.u32 }, { "u64", Type.u64 }, { "usize", Type.uSize },
-                                                { "f32", Type.f32 }, { "f64", Type.f64 }, { "void",   Type.Void }
+        { "return", Type.Return }
     };
 }
 public class Lexer
@@ -364,13 +357,36 @@ public class Lexer
 
         string text = _Source.Substring(_Start, _Current - _Start);
 
+        // First check reserved keywords
         if (Tokens.Keywords.TryGetValue(text, out Tokens.Type keywordType))
         {
             AddToken(keywordType);
             return;
         }
 
+        // Then check if it's a known type name (i32, f64, etc.)
+        if (IsBuiltInType(text))
+        {
+            AddToken(Tokens.Type.TypeKeyword);
+            return;
+        }
+
+        // Otherwise it's a regular identifier
         AddToken(Tokens.Type.Identifier);
+        
+        bool IsBuiltInType(string name)
+        {
+            return name switch
+            {
+                "var" or
+                "i8" or "i16" or "i32" or "i64" or "isize" or 
+                "u8" or "u16" or "u32" or "u64" or "usize" or
+                                 "f32" or "f64" or 
+                "bool" or "void" or
+                "char" or "string" => true,
+                _ => false
+            };
+        }
     }
 
     /// <summary>
