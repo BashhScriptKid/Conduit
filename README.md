@@ -23,14 +23,14 @@ int main() {
 
 ```cndt
 int main() {
-    (u128, u128) mut x = (0, 1);
-    Vector<u128> mut list = Vector<u128>.new();
+    (uint128, uint128) mut x = (0, 1);
+    Vector<uint128> mut list = Vector<uint128>.new();
 
     list.push(x.0);
     list.push(x.1);
 
     while (true) {
-        var (t, overflow) = x.1.overflowing_add(x.0);
+        (var t, var overflow) = x.1.overflowing_add(x.0);
 
         if (overflow) {
             #println("Sequence complete: {} numbers", list.len());
@@ -120,7 +120,7 @@ struct Parser^[input] {
 
 // Lifetime in functions
 string^[a] longest^[a](string^[a] x, string^[a] y) {
-    if (x.len() > y.len()) { x } else { y }
+    if (x.len() > y.len()) {return x } else { return y }
 }
 
 // Borrow existing lifetime
@@ -180,7 +180,7 @@ define Circle : Drawable {
         self.center = center
         self.radius = radius
     }
-    
+
     methods Drawable {
         void draw() {
             #println("Circle at ({}, {})", self.center.x, self.center.y);
