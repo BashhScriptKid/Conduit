@@ -57,6 +57,7 @@ public static class Tokens
     {
         Keyword,
         Identifier,
+        LifeTimeSpecifier,
         Literal,
         Symbol,
         Newline,
@@ -86,10 +87,12 @@ public static class Tokens
         
         
         // Identifier (Limit to semantically visible types)
-        MutBorrow, Borrow,     // &foo, &!foo 
-        Macro,                 // #foo
-        Pointer, MutPointer,   // *foo, *!foo
-        Generic,               // foo<T>
+        MutBorrow, Borrow,                 // &foo, &!foo 
+        Macro,                             // #foo
+        Pointer, MutPointer,               // *foo, *!foo
+        Generic,                           // foo<T>
+        Incremental, Decremental,          // foo++, foo-- or ++foo, --foo
+        IdentifierNegate,                  // !foo
         
         // Literal
         Binary,   // 0b----
@@ -106,6 +109,11 @@ public static class Tokens
             Ampersand, Pipe, Caret, Bang, At,           // & | ^ ! @
             AmpersandAmpersand, PipePipe,               // && ||
             ShiftLeft,  ShiftRight,                     // << >>
+            PlusPlus, MinusMinus,                       // ++ --
+            PlusEqual, MinusEqual,                      // += -=
+            StarEqual, SlashEqual,                      // *= /=
+            AmpersandEqual, CaretEqual, PipeEqual,      // &= ^=
+            ShiftLeftEqual, ShiftRightEqual,            // <<= >>=
             EqualEqual, BangEqual,                      // == !=
             Less,       Greater,                        // < >
             LessEqual,  GreaterEqual,                   // <= >=
@@ -122,6 +130,7 @@ public static class Tokens
             LeftBracket, RightBracket,                  // [ ]
             Semicolon, Comma, Dot,                      // ; , .
             Colon, ColonColon,                          // : ::
+            None,
     }
     
     // Only added by parsers
@@ -233,35 +242,6 @@ public static class Tokens
     }
 
     /// <summary>
-    /// Represents a mapping between token types and their corresponding semantic operator representations.
-    /// This dictionary is used to associate lexer-level token types with their respective higher-level
-    /// operations in the abstract syntax tree (AST), such as arithmetic, boolean comparisons, and bitwise operations.
-    /// </summary>
-    public static readonly Dictionary<Type, object> OperatorMap = new()
-    {
-        { Type.Plus,               Operator.Arithmetic.Add      },
-        { Type.Minus,              Operator.Arithmetic.Subtract },
-        { Type.Star,               Operator.Arithmetic.Multiply },
-        { Type.Slash,              Operator.Arithmetic.Divide   },
-        { Type.Percent,            Operator.Arithmetic.Modulo   },
-        
-        { Type.AmpersandAmpersand, Operator.BoolComparison.And                },
-        { Type.PipePipe,           Operator.BoolComparison.Or                 },
-        { Type.Less,               Operator.BoolComparison.LessThan           },
-        { Type.Greater,            Operator.BoolComparison.GreaterThan        },
-        { Type.LessEqual,          Operator.BoolComparison.LessThanOrEqual    },
-        { Type.GreaterEqual,       Operator.BoolComparison.GreaterThanOrEqual },
-        { Type.EqualEqual,         Operator.BoolComparison.Equal              },
-        { Type.BangEqual,          Operator.BoolComparison.NotEqual           },
-        
-        { Type.ShiftLeft,          Operator.Bit.ShiftLeft  },
-        { Type.ShiftRight,         Operator.Bit.ShiftRight },
-        { Type.Ampersand,          Operator.Bit.And        },
-        { Type.Pipe,               Operator.Bit.Or         },
-        { Type.Caret,              Operator.Bit.Xor        }
-    };
-
-    /// <summary>
     /// Represents a mapping of keyword strings to their corresponding token types,
     /// enabling the lexer to identify reserved words in the source code.
     /// </summary>
@@ -366,7 +346,7 @@ public class Lexer
         }
 
         var eofSpan = new Tokens.SourceSpan(_Line, _Current - _LineStart + 1, 0);
-        _Tokens.Add(new Tokens.Token(Tokens.Type.EndOfFile, string.Empty, eofSpan));
+        _Tokens.Add(new Tokens.Token(Tokens.Type.Eof, Tokens.MetaType.None, string.Empty, eofSpan));
         return new LexResult(_Tokens, _diagnostics);
     }
     
@@ -389,64 +369,230 @@ public class Lexer
                 return;
             
             case '\n':
-                AddToken(Tokens.Type.Newline);
+                AddToken(Tokens.Type.Newline, Tokens.MetaType.None);
                 _Line++;
                 _LineStart = _Current;
                 return;
 
             // Single-character delimiters and operators.
-            case '(': AddToken(Tokens.Type.LeftParen);    return;
-            case ')': AddToken(Tokens.Type.RightParen);   return;
-            case '{': AddToken(Tokens.Type.LeftBrace);    return;
-            case '}': AddToken(Tokens.Type.RightBrace);   return;
-            case '[': AddToken(Tokens.Type.LeftBracket);  return;
-            case ']': AddToken(Tokens.Type.RightBracket); return;
-            case ';': AddToken(Tokens.Type.Semicolon);    return;
-            case ',': AddToken(Tokens.Type.Comma);        return;
-            case '.': AddToken(Tokens.Type.Dot);          return;
-            case '?': AddToken(Tokens.Type.Question);     return;
+            case '(': AddToken(Tokens.Type.Symbol, Tokens.MetaType.LeftParen);    return;
+            case ')': AddToken(Tokens.Type.Symbol, Tokens.MetaType.RightParen);   return;
+            case '{': AddToken(Tokens.Type.Symbol, Tokens.MetaType.LeftBrace);    return;
+            case '}': AddToken(Tokens.Type.Symbol, Tokens.MetaType.RightBrace);   return;
+            case '[': AddToken(Tokens.Type.Symbol, Tokens.MetaType.LeftBracket);  return;
+            case ']': AddToken(Tokens.Type.Symbol, Tokens.MetaType.RightBracket); return;
+            case ';': AddToken(Tokens.Type.Symbol, Tokens.MetaType.Semicolon);    return;
+            case ',': AddToken(Tokens.Type.Symbol, Tokens.MetaType.Comma);        return;
+            case '.': AddToken(Tokens.Type.Symbol, Tokens.MetaType.Dot);          return;
+            case '?': AddToken(Tokens.Type.Symbol, Tokens.MetaType.Question);     return;
 
             // Potentially multi-character operators.
-            case '+': AddToken(Tokens.Type.Plus); return;
-            case '-': AddToken(Tokens.Type.Minus); return;
-            case '*': AddToken(Tokens.Type.Star); return;
-            case '%': AddToken(Tokens.Type.Percent); return;
-            case '^': AddToken(Tokens.Type.Caret); return;
+            case '+':
+                if (Match('='))
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.PlusEqual); // Handles +=
+                else if (Match('+'))
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.Incremental); // Handles ++
+                else
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.Plus);      // Handles +
+                return;
+
+            case '-': 
+                if (Match('='))
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.MinusEqual); // Handles -=
+                else if (Match('-'))
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.Decremental); // Handles --
+                else
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.Minus);      // Handles -
+                return;
+                
+            case '*':
+                if (Match('='))
+                {
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.StarEqual); // Emits *=
+                }
+                else if (Match('!'))
+                {
+                    // Check if it's '*!' followed by an identifier, for a mutable pointer type context
+                    if (TryConsumeIdentifier(out _))
+                    {
+                        AddToken(Tokens.Type.Identifier, Tokens.MetaType.MutPointer); // Emits *!
+                    }
+                    else
+                    {
+                        // Report the error and do not emit a token.
+                        ReportError("Invalid token sequence '*!'. A mutable pointer must be followed by an identifier.");
+                    }
+                }
+                else if (TryConsumeIdentifier(out _))
+                {
+                    // Check if it's '*' followed by an identifier, for a pointer type context
+                    AddToken(Tokens.Type.Identifier, Tokens.MetaType.Pointer); // Emits *
+                }
+                else
+                {
+                    // It's just a multiplication operator
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.Star); // Emits *
+                }
+                return; // return after handling all cases for '*'
+            
+            case '%': AddToken(Tokens.Type.Symbol, Tokens.MetaType.Percent); return;
+            
+            case '^':
+                if (Match('='))
+                {
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.CaretEqual); // Handles ^=
+                }
+                // Check if a lifetime specifier is starting (^ followed by [)
+                else if (Peek() == '[')
+                {
+                    // _Start already points to the '^'. Now we consume the rest.
+                    Advance(); // Consume '['
+
+                    bool validLifetime = true;
+
+                    // Consume lifetime identifiers (may be multiple: ^['a, 'b])
+                    consumeInnerBrace:
+
+                    // Optional: handle the single quotes for named lifetimes.
+                    if (Peek() is '\'')
+                    {
+                        Advance(); // Consume opening ' for lifetime usage (^['foo])
+                    }
+
+                    // Consume the identifier/name part of the lifetime.
+                    if (IsIdentifierStart(Peek()))
+                    {
+                        if (!TryConsumeIdentifier(out _))
+                        {
+                            // Error already reported by TryConsumeIdentifier
+                            validLifetime = false;
+                        }
+                    }
+                    else
+                    {
+                        ReportError("Expected lifetime identifier after '^[' or ','.", GetLineCol());
+                        validLifetime = false;
+                    }
+
+                    // Check for multiple lifetimes or end of specifier
+                    if (Peek() is ',' or ' ') // Multiple lifetime usage/declaration
+                    {
+                        Advance();
+                        goto consumeInnerBrace;
+                    }
+                    
+                    // The lifetime specifier MUST end with a ']'
+                    if (Match(']')) // Match() consumes the ']' if it exists.
+                    {
+                        // We have successfully consumed the entire ^[...] structure.
+                        if (validLifetime)
+                        {
+                            AddToken(Tokens.Type.LifeTimeSpecifier, Tokens.MetaType.None);
+                        }
+                        // If not valid, error was already reported, don't emit token
+                    }
+                    else
+                    {
+                        // We saw '^[' but never found the closing ']'. This is a syntax error.
+                        ReportError("Unterminated lifetime specifier. Expected ']'.", GetLineCol());
+                    }
+                }
+                else
+                {
+                    // It wasn't '^=' or '^[' so it must be the XOR operator.
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.Caret); 
+                }
+                return;
 
             case '!':
-                AddToken(Match('=') ? Tokens.Type.BangEqual : Tokens.Type.Exclamation);
+                if (Match('='))
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.BangEqual);
+                else if (TryConsumeIdentifier(out _))
+                    AddToken(Tokens.Type.Identifier, Tokens.MetaType.IdentifierNegate);
                 return;
 
             case '=':
-                AddToken(Match('=') ? Tokens.Type.EqualEqual : Tokens.Type.Assignment);
+                AddToken(Tokens.Type.Symbol, Match('=') ? Tokens.MetaType.EqualEqual : Tokens.MetaType.Equal);
                 return;
 
             case '<':
-                if (Match('<')) { AddToken(Tokens.Type.ShiftLeft); return; }
-                if (Match('=')) { AddToken(Tokens.Type.LessEqual); return; }
-                AddToken(Tokens.Type.Less);
+                if (Match('<')) // <<
+                {
+                    if (Match('=')) // <<=
+                        AddToken(Tokens.Type.Symbol, Tokens.MetaType.ShiftLeftEqual);
+                    else // <<
+                        AddToken(Tokens.Type.Symbol, Tokens.MetaType.ShiftLeft);
+                    return;
+                }
+                if (Match('=')) // <=
+                {
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.LessEqual);
+                    return;
+                }
+                // <
+                AddToken(Tokens.Type.Symbol, Tokens.MetaType.Less);
                 return;
 
             case '>':
-                if (Match('>')) { AddToken(Tokens.Type.ShiftRight); return; }
-                if (Match('=')) { AddToken(Tokens.Type.GreaterEqual); return; }
-                AddToken(Tokens.Type.Greater);
+                if (Match('>')) // >>
+                {
+                    if (Match('=')) // >>=
+                        AddToken(Tokens.Type.Symbol, Tokens.MetaType.ShiftRightEqual);
+                    else // >>
+                        AddToken(Tokens.Type.Symbol, Tokens.MetaType.ShiftRight);
+                    return;
+                }
+                if (Match('=')) // >=
+                {
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.GreaterEqual);
+                    return;
+                }
+                // >
+                AddToken(Tokens.Type.Symbol, Tokens.MetaType.Greater);
                 return;
 
             case '&':
-                AddToken(Match('&') ? Tokens.Type.AmpersandAmpersand : Tokens.Type.Ampersand);
+                if (Match('!'))
+                {
+                    // Check if it's '&!' followed by an identifier, for a mutable borrow type context
+                    if (TryConsumeIdentifier(out _))
+                    {
+                        AddToken(Tokens.Type.Identifier, Tokens.MetaType.MutBorrow); // &!foo
+                    }
+                    else
+                    {
+                        // Report the error and do not emit a token.
+                        ReportError("Invalid token sequence '&!'. A mutable borrow must be followed by an identifier.");
+                    }
+                }
+                else if (TryConsumeIdentifier(out _))
+                {
+                    // Check if it's '&' followed by an identifier, for a borrow type context
+                    AddToken(Tokens.Type.Identifier, Tokens.MetaType.Borrow); // &foo
+                }
+                else
+                {
+                    // It's just an ampersand operator (or double ampersand)
+                    AddToken(Tokens.Type.Symbol, Match('&') ? Tokens.MetaType.AmpersandAmpersand : Tokens.MetaType.Ampersand);
+                }
                 return;
 
             case '|':
-                AddToken(Match('|') ? Tokens.Type.PipePipe : Tokens.Type.Pipe);
+                AddToken(Tokens.Type.Symbol, Match('|') ? Tokens.MetaType.PipePipe : Tokens.MetaType.Pipe);
                 return;
 
             case ':':
-                AddToken(Match(':') ? Tokens.Type.ColonColon : Tokens.Type.Colon);
+                AddToken(Tokens.Type.Symbol, Match(':') ? Tokens.MetaType.ColonColon : Tokens.MetaType.Colon);
+                return;
+            
+            case '#':
+                if (TryConsumeIdentifier(out _))
+                    AddToken(Tokens.Type.Identifier, Tokens.MetaType.Macro);
+                else
+                    ReportError("Expected identifier after '#'.", GetLineCol());
                 return;
 
             case '/':
-                // Support comment skipping as a fallback even if preprocessor already stripped them.
                 if (Match('/'))
                 {
                     // Line comment: skip until newline or EOF.
@@ -461,7 +607,13 @@ public class Lexer
                     return;
                 }
 
-                AddToken(Tokens.Type.Slash);
+                if (Match('='))
+                {
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.SlashEqual);
+                    return;
+                }
+
+                AddToken(Tokens.Type.Symbol, Tokens.MetaType.Slash);
                 return;
 
             // String literals (single or double quotes).
@@ -487,44 +639,84 @@ public class Lexer
     }
 
     /// <summary>
-    /// Reads an identifier, then decides if it is a keyword or a user-defined name.
+    /// Reads an identifier, then decides if it is a keyword or a plain user-defined name.
     /// </summary>
     private void ReadIdentifierOrKeyword()
     {
+        bool escapeKeyword = false;
+
+        // 1. Check for the optional escape character FIRST.
+        if (Peek() == '@')
+        {
+            escapeKeyword = true;
+            Advance(); // Consume the '@'.
+        }
+
+        // 2. Consume the identifier characters.
         while (IsIdentifierPart(Peek())) Advance();
 
-        string text = _Source.Substring(_Start, _Current - _Start);
+        // 3. Extract the full lexeme (including '@' if present) and the identifier part (without '@').
+        string fullLexeme = _Source.Substring(_Start, _Current - _Start);
+        string identifierPart = escapeKeyword ? fullLexeme.Substring(1) : fullLexeme;
 
-        // First check reserved keywords
-        if (Tokens.Keywords.TryGetValue(text, out Tokens.Type keywordType))
+        // 4. Check if it's a reserved keyword (only if not escaped).
+        if (Tokens.Keywords.TryGetValue(identifierPart, out Tokens.MetaType keywordType) && !escapeKeyword)
         {
-            AddToken(keywordType);
+            AddToken(Tokens.Type.Keyword, keywordType);
             return;
         }
 
-        // Then check if it's a known type name (i32, f64, etc.)
-        if (IsBuiltInType(text))
+        // 5. Otherwise it's a regular identifier (possibly escaped).
+        AddToken(Tokens.Type.Identifier, Tokens.MetaType.None);
+    }
+
+    /// <summary>
+    /// Attempts to consume an identifier from the current position, handling escaped keywords.
+    /// Does not add a token. The cursor must be positioned at the start of an identifier or '@' escape.
+    /// </summary>
+    /// <param name="identifier">The consumed identifier string, or null if consumption fails.</param>
+    /// <returns>True if a valid identifier was consumed, otherwise false.</returns>
+    private bool TryConsumeIdentifier(out string identifier)
+    {
+        int positionAtStart = _Current; // Save position in case we need to report errors accurately
+        bool escapeKeyword = false;
+
+        // 1. Check for the optional escape character FIRST.
+        if (Peek() == '@')
         {
-            AddToken(Tokens.Type.TypeKeyword);
-            return;
+            escapeKeyword = true;
+            Advance(); // Consume the '@'.
         }
 
-        // Otherwise it's a regular identifier
-        AddToken(Tokens.Type.Identifier);
-        
-        bool IsBuiltInType(string name)
+        // 2. NOW, check if a valid identifier starts at the current position.
+        if (!IsIdentifierStart(Peek()))
         {
-            return name switch
+            // This handles cases where there's no identifier, OR a standalone '@'.
+            if (escapeKeyword)
             {
-                "var" or
-                "i8" or "i16" or "i32" or "i64" or "isize" or 
-                "u8" or "u16" or "u32" or "u64" or "usize" or
-                                 "f32" or "f64" or 
-                "bool" or "void" or
-                "char" or "string" => true,
-                _ => false
-            };
+                ReportError("Expected an identifier after the '@' escape character.", positionAtStart - _LineStart + 1);
+            }
+            identifier = null;
+            return false;
         }
+
+        // 3. Mark the start and consume the identifier.
+        int startOfIdentifier = _Current;
+        while (IsIdentifierPart(Peek()))
+        {
+            Advance();
+        }
+        identifier = _Source.Substring(startOfIdentifier, _Current - startOfIdentifier);
+
+        // 4. Validate against keywords (only if not escaped).
+        if (Tokens.Keywords.TryGetValue(identifier, out _) && !escapeKeyword)
+        {
+            ReportError($"Unexpected keyword '{identifier}'. To use it as an identifier, prefix it with '@'.", _Current - _LineStart + 1);
+            return false; // Indicate failure, but the 'identifier' out parameter will hold the keyword.
+        }
+    
+        // Success!
+        return true;
     }
 
     /// <summary>
@@ -532,19 +724,84 @@ public class Lexer
     /// </summary>
     private void ReadNumber()
     {
+        // Check for binary (0b) or hexadecimal (0x) prefixes
+        if (Peek() == '0')
+        {
+            char next = PeekNext();
+            if (next is 'b' or 'B')
+            {
+                Advance(); // Consume '0'
+                Advance(); // Consume 'b' or 'B'
+                if (!IsDigit(Peek()) || (Peek() != '0' && Peek() != '1'))
+                {
+                    ReportError("Invalid binary literal. Expected at least one binary digit (0-1) after '0b'.", GetLineCol());
+                    return;
+                }
+                while (Peek() == '0' || Peek() == '1') Advance();
+                AddToken(Tokens.Type.Literal, Tokens.MetaType.Binary);
+                return;
+            }
+            else if (next is 'x' or 'X')
+            {
+                Advance(); // Consume '0'
+                Advance(); // Consume 'x' or 'X'
+                if (!IsHexDigit(Peek()))
+                {
+                    ReportError("Invalid hexadecimal literal. Expected at least one hex digit (0-9, a-f, A-F) after '0x'.", GetLineCol());
+                    return;
+                }
+                while (IsHexDigit(Peek())) Advance();
+                AddToken(Tokens.Type.Literal, Tokens.MetaType.Hex);
+                return;
+            }
+        }
+
+        // Decimal integer or float
         while (IsDigit(Peek()))
             Advance();
+
+        if (Peek() == '_')
+            Advance(); // Syntactic separator
 
         // Fractional part: only if we see ".<digit>".
         if (Peek() == '.' && IsDigit(PeekNext()))
         {
             Advance(); // Consume '.'
             while (IsDigit(Peek())) Advance();
-            AddToken(Tokens.Type.FloatLiteral);
+            // Check for exponent
+            if (Peek() == 'e' || Peek() == 'E')
+            {
+                Advance(); // Consume 'e' or 'E'
+                if (Peek() == '+' || Peek() == '-') Advance(); // Optional sign
+                if (!IsDigit(Peek()))
+                {
+                    ReportError("Invalid float literal. Expected at least one digit in exponent.", GetLineCol());
+                    return;
+                }
+                while (IsDigit(Peek())) Advance();
+            }
+            AddToken(Tokens.Type.Literal, Tokens.MetaType.Float);
             return;
         }
 
-        AddToken(Tokens.Type.IntegerLiteral);
+        // Check for exponent on integer (e.g., 12E3)
+        if (Peek() == 'e' || Peek() == 'E')
+        {
+            Advance(); // Consume 'e' or 'E'
+            if (Peek() == '+' || Peek() == '-') Advance(); // Optional sign
+            if (!IsDigit(Peek()))
+            {
+                ReportError("Invalid float literal. Expected at least one digit in exponent.", GetLineCol());
+                return;
+            }
+            while (IsDigit(Peek())) Advance();
+            AddToken(Tokens.Type.Literal, Tokens.MetaType.Float);
+            return;
+        }
+
+        AddToken(Tokens.Type.Literal, Tokens.MetaType.Integer);
+        
+        bool IsHexDigit(char c) => IsDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
     }
 
     /// <summary>
@@ -570,7 +827,9 @@ public class Lexer
 
             if (c == quote)
             {
-                AddToken(Tokens.Type.StringLiteral);
+                // Determine literal type based on quote character
+                Tokens.MetaType literalType = quote == '"' ? Tokens.MetaType.String : Tokens.MetaType.Char;
+                AddToken(Tokens.Type.Literal, literalType);
                 return;
             }
         }
@@ -617,12 +876,12 @@ public class Lexer
     /// <summary>
     /// Adds a token using the lexeme from _start.._current.
     /// </summary>
-    private void AddToken(Tokens.Type type)
+    private void AddToken(Tokens.Type type, Tokens.MetaType metaType)
     {
         string lexeme = _Source.Substring(_Start, _Current - _Start);
         int column = _Start - _LineStart + 1;
         var span = new Tokens.SourceSpan(_Line, column, _Current - _Start);
-        _Tokens.Add(new Tokens.Token(type, lexeme, span));
+        _Tokens.Add(new Tokens.Token(type, metaType, lexeme, span));
     }
 
     /// <summary>
