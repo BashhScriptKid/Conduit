@@ -2,8 +2,10 @@ namespace CSBackend;
 
 public static class Tokens
 {
+    public readonly record struct SourceSpan(int Line, int Column, int Length);
+
     // Main Token class that the lexer produces
-    public class Token(Type tokenType, string lexeme, int line)
+    public class Token(Type tokenType, string lexeme, SourceSpan span)
     {
         /// <summary>
         /// Gets the category or classification of the token (e.g., Identifier, Keyword, or Operator).
@@ -18,7 +20,19 @@ public static class Tokens
         /// <summary>
         /// Gets the 1-based line number in the source file where this token was encountered.
         /// </summary>
-        public int Line { get; } = line;
+        public int Line => Span.Line;
+
+        /// <summary>
+        /// Gets the 1-based column number where this token starts.
+        /// </summary>
+        public int Column => Span.Column;
+
+        /// <summary>
+        /// Gets the length of the token's lexeme in characters.
+        /// </summary>
+        public int Length => Span.Length;
+
+        public SourceSpan Span { get; } = span;
 
         public override string ToString() => $"{TokenType} '{Lexeme}'";
     }
@@ -201,28 +215,54 @@ public class Lexer
     // _current is the "cursor" pointing at the next char to consume.
     private int _Start;
     private int _Current;
+    
+    private readonly string _FilePath;
 
     // 1-based line counter and raw ccndt string for diagnostics.
     private int _Line;
+    private int _LineStart;
     
     private readonly string[] _LinesData;
 
     // Token collection produced by LexAll.
     private readonly List<Tokens.Token> _Tokens = new();
 
-    public Lexer(string source)
+    private readonly List<Diagnostic> _diagnostics = new();
+    
+    public Lexer(string source, string filePath)
     {
         _Source = string.IsNullOrEmpty(source) ? string.Empty : source;
         _Start = 0;
         _Current = 0;
         _Line = 1;
+        _LineStart = 0;
+        _FilePath = filePath; // Store file path for diagnostics
         _LinesData = _Source.Replace("\r\n", "\n").Split('\n');
     }
+    
+    public string FilePath => _FilePath;
+    public IReadOnlyList<Diagnostic> Diagnostics => _diagnostics.AsReadOnly();
+    
+    // Add diagnostic instead of throwing
+    private void ReportError(string message, int column = -1)
+    {
+        if (column == -1) column = _Current + 1; // Approximate column
+        _diagnostics.Add(new Diagnostic(
+            Diagnostic.Severity.Error,
+            message,
+            _FilePath,
+            _Line,
+            column,
+            1
+        ));
+    }
+    
+    public record LexResult(List<Tokens.Token> Tokens, List<Diagnostic> Diagnostics);
 
     /// <summary>
     /// Convenience entry point: scan the entire input and return tokens.
     /// </summary>
-    public List<Tokens.Token> LexAll()
+    public LexResult LexAll()
     {
         while (!IsAtEnd())
         {
@@ -231,15 +271,18 @@ public class Lexer
             ScanToken();
         }
 
-        _Tokens.Add(new Tokens.Token(Tokens.Type.EndOfFile, string.Empty, _Line));
-        return _Tokens;
+        var eofSpan = new Tokens.SourceSpan(_Line, _Current - _LineStart + 1, 0);
+        _Tokens.Add(new Tokens.Token(Tokens.Type.EndOfFile, string.Empty, eofSpan));
+        return new LexResult(_Tokens, _diagnostics);
     }
+    
+    private int GetLineCol() => _Current - _LineStart;
 
     /// <summary>
     /// Scans a single token based on the current cursor position.
     /// </summary>
     private void ScanToken()
-    {
+    { 
         char c = Advance();
 
         switch (c)
@@ -254,6 +297,7 @@ public class Lexer
             case '\n':
                 AddToken(Tokens.Type.Newline);
                 _Line++;
+                _LineStart = _Current;
                 return;
 
             // Single-character delimiters and operators.
@@ -345,7 +389,7 @@ public class Lexer
             return;
         }
 
-        throw new InvalidOperationException($"Unexpected character '{c}' at line {_Line}. \n{_LinesData[_Line - 1]}");
+        ReportError($"Unexpected character '{c}'", GetLineCol());
     }
 
     /// <summary>
@@ -437,7 +481,7 @@ public class Lexer
             }
         }
 
-        throw new InvalidOperationException($"Unterminated string literal at line {_Line}.");
+        ReportError("Unterminated string literal", GetLineCol());
     }
 
     /// <summary>
@@ -445,6 +489,7 @@ public class Lexer
     /// </summary>
     private void SkipBlockComment()
     {
+        int initialBlockCommentLine = _Line;
         while (!IsAtEnd())
         {
             if (Peek() == '\n')
@@ -464,7 +509,7 @@ public class Lexer
             Advance();
         }
 
-        throw new InvalidOperationException($"Unterminated block comment at line {_Line}.");
+        ReportError($"Unterminated block comment, started from line {initialBlockCommentLine}");
     }
     
     /// <summary>
@@ -481,7 +526,9 @@ public class Lexer
     private void AddToken(Tokens.Type type)
     {
         string lexeme = _Source.Substring(_Start, _Current - _Start);
-        _Tokens.Add(new Tokens.Token(type, lexeme, _Line));
+        int column = _Start - _LineStart + 1;
+        var span = new Tokens.SourceSpan(_Line, column, _Current - _Start);
+        _Tokens.Add(new Tokens.Token(type, lexeme, span));
     }
 
     /// <summary>
