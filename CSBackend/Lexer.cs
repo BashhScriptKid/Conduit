@@ -115,6 +115,7 @@ public static class Tokens
             DotDot,                                     // .. (not sure if we gonna use this)
             
             // Delimiters
+            DoubleQuote, SingleQuote,                   // " '
             LeftAngle, RightAngle,                      // < >
             LeftParen, RightParen,                      // ( )
             LeftBrace, RightBrace,                      // { }
@@ -125,62 +126,54 @@ public static class Tokens
     
     // Only added by parsers
     public enum ParsedType
-    { 
-        // === Top-Level Declarations ===
-        // These are the main constructs that can appear at the top level of a file.
-        FunctionDeclaration,
-        StructDeclaration,
-        TraitDeclaration,
-        EnumDeclaration,
-        DefineBlock,        // The unified 'define' construct.
-        ImportStatement,    // using ...;
+    {
+        None, // Default, or for lexemes that do not represent a semantic symbol.
 
-        // === Statements ===
-        // Statements are instructions that perform an action but do not resolve to a value.
+        // === Variable & Parameter Symbols ===
+        // Distinguishes between where a variable is defined and where it is used.
         VariableDeclaration,
-        ExpressionStatement, // An expression used as a statement (e.g., a function call).
-        ReturnStatement,
-        IfStatement,
-        // The spec doesn't show while/for, but your MetaType has them, so they'd be here.
-        WhileStatement, 
-        ForStatement,   
-        BlockStatement,     // A block of statements: { ... }
-        DeferStatement,
-        DropStatement,
+        VariableUsage,
+        ParameterDeclaration, // The definition in a function signature.
+        ParameterUsage,       // The use of a parameter within a function body.
+    
+        // === Function & Method Symbols ===
+        // Distinguishes between defining a function/method and calling it.
+        FunctionDeclaration,
+        FunctionUsage,
+        MethodDeclaration,
+        MethodUsage,
 
-        // === Expressions ===
-        // Expressions are constructs that evaluate to a value.
-        LiteralExpression,      // "hello", 5, 4.2, true, null
-        IdentifierExpression,   // A variable or function name.
-        PathExpression,         // std.collections.HashMap
-        UnaryExpression,        // e.g., -x, !y, &foo
-        BinaryExpression,       // e.g., x + y
-        AssignmentExpression,   // x = y
-        CallExpression,         // my_func(a, b)
-        MemberAccessExpression, // my_struct.field
-        IndexExpression,        // my_array[i]
-        StructInitializer,      // Point { x: 0, y: 0 }
-        ArrayInitializer,       // int[5] { 1, 2, 3, 4, 5 }
-        TupleInitializer,       // (1, "hello")
-        MatchExpression,        // match (result) { ... }
-        LambdaExpression,       // (int x) => x * 2
-        UnsafeBlock,
-        RustBlock,              // rust! { ... }
-        AsmBlock,               // asm! { ... }
+        // === Type Definition Symbols ===
+        // Specific categories for what kind of type is being defined.
+        StructDeclaration,
+        EnumDeclaration,
+        TraitDeclaration,
+        TypeAliasDeclaration, // For 'using MyInt = int;' or similar constructs.
+        TypeUsage,            // When a type name is used (e.g., in a variable declaration, parameter, or cast).
 
-        // === Types, Generics, and Lifetimes ===
-        // These nodes represent type annotations and related concepts.
-        TypeReference,          // Represents a type itself, e.g., 'int', 'string?', '&!MyStruct'
-        GenericParameter,       // <T>
-        LifetimeDeclaration,    // ^[input]
-        WhereClause,            // where ^[a > b]
+        // === Member & Variant Symbols ===
+        // Symbols that exist within a type definition.
+        FieldDeclaration,     // The definition of a field in a struct.
+        FieldUsage,
+        EnumVariantDeclaration, // The definition of a variant in an enum.
+        EnumVariantUsage,
 
-        // === Miscellaneous Grammar Components ===
-        // These are important parts of other declarations, but not standalone nodes.
-        FunctionParameter,      // A single parameter in a function signature: 'int x'
-        Attribute,              // @must_use, @derive(...)
-        EnumVariant,            // A single variant in an enum declaration.
-        StructField,            // A single field in a struct declaration.
+        // === Organizational Symbols ===
+        // Symbols related to code structure and imports.
+        Module,               // A native Conduit module.
+        Namespace,            // A component in a path, e.g., 'Collections' in 'System.Collections'.
+        Crate,                // Represents an imported Rust Crate.
+
+        // === Generics & Lifetimes ===
+        // Symbols for generic programming and memory management.
+        GenericParameterDeclaration, // The 'T' in 'struct Vec<T>'.
+        GenericParameterUsage,       // The 'T' in 'fn new() -> T'.
+        LifetimeDeclaration,         // The 'a in 'fn foo^[a]()'.
+        LifetimeUsage,               // The 'a in '&'a str'.
+
+        // === Metaprogramming Symbols ===
+        Macro,
+        Attribute
     }
 
     /// <summary>
@@ -272,16 +265,38 @@ public static class Tokens
     /// Represents a mapping of keyword strings to their corresponding token types,
     /// enabling the lexer to identify reserved words in the source code.
     /// </summary>
-    public static readonly Dictionary<string, Type> Keywords = new(StringComparer.OrdinalIgnoreCase)
+    public static readonly Dictionary<string, MetaType> Keywords = new(StringComparer.OrdinalIgnoreCase)
     {
-        { "var",    Type.Var    },
-        { "mut",    Type.Mut    },
-        { "fn",     Type.Fn     },
-        { "if",     Type.If     },
-        { "else",   Type.Else   },
-        { "while",  Type.While  },
-        { "for",    Type.For    },
-        { "return", Type.Return }
+        { "var",         MetaType.Var         },
+        { "mut",         MetaType.Mut         },
+        { "unmut",       MetaType.Unmut       },
+        { "if",          MetaType.If          },
+        { "else",        MetaType.Else        },
+        { "while",       MetaType.While       },
+        { "for",         MetaType.For         },
+        { "foreach",     MetaType.Foreach     },
+        { "return",      MetaType.Return      },
+        { "struct",      MetaType.Struct      },
+        { "trait",       MetaType.Trait       },
+        { "define",      MetaType.Define      },
+        { "enum",        MetaType.Enum        },
+        { "bundles",     MetaType.Bundles     },
+        { "using",       MetaType.Using       },
+        { "as",          MetaType.As          },
+        { "from",        MetaType.From        },
+        { "where",       MetaType.Where       },
+        { "unsafe",      MetaType.Unsafe      },
+        { "rust",        MetaType.Rust        },
+        { "unsafe_rust", MetaType.UnsafeRust  },
+        { "asm",         MetaType.Asm         },
+        { "null",        MetaType.Null        },
+        { "match",       MetaType.Match       },
+        { "caught",      MetaType.Caught      },
+        { "drop",        MetaType.Drop        },
+        { "defer",       MetaType.Defer       },
+        { "static",      MetaType.Static      },
+        { "new",         MetaType.New         },
+        { "function",    MetaType.Function    }
     };
 }
 public class Lexer

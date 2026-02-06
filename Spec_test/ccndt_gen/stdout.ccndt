@@ -1,0 +1,250 @@
+i32 global_counter = 0;
+i32 add(i32 a, i32 b) {
+    return a + b;
+}
+i32 subtract(i32 a, i32 b) {
+    return a - b;
+}
+i32 multiply(i32 a, i32 b) {
+    return a * b;
+}
+SafetyNet<i32, DivideError> divide(i32 a, i32 b) {
+    if (b == 0) {
+        Caught DivideError.DivideByZero;
+    }
+    return a / b;
+}
+i32 absolute(i32 x) {
+    if (x < 0) {
+        return -x;
+    } else {
+        return x;
+    }
+}
+i32 max(i32 a, i32 b) {
+    if (a > b) {
+        return a;
+    }
+    return b;
+}
+i32 sum_to_n(i32 n) {
+    i32 mut sum = 0;
+    i32 mut i = 1;
+    while (i <= n) {
+        sum = sum + i;
+        i = i + 1;
+    }
+    return sum;
+}
+i32 factorial_iterative(i32 n) {
+    i32 mut result = 1;
+    for (i32 i in 1..=n) {
+        result = result * i;
+    }
+    return result;
+}
+i32 factorial_recursive(i32 n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial_recursive(n - 1);
+}
+i32 fibonacci(i32 n) {
+    if (n <= 1) {
+        return n;
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+void increment_global() {
+    mut global_counter;
+    global_counter = global_counter + 1;
+}
+i32 get_global() {
+    return global_counter;
+}
+i32 array_sum(&[i32] arr) {
+    i32 mut sum = 0;
+    i32 mut i = 0;
+    while (i < arr.length) {
+        sum = sum + arr[i];
+        i = i + 1;
+    }
+    return sum;
+}
+void array_fill(&mut-i32[] arr, i32 value) {
+    i32 mut i = 0;
+    while (i < arr.length) {
+        arr[i] = value;
+        i = i + 1;
+    }
+}
+struct Stack {
+    i32[256] data
+    i32 top
+}
+Stack stack_new() {
+    return Stack {
+        data: {0},
+        top: 0
+    };
+}
+void stack_push(&mut-Stack stack, i32 value) {
+    if (stack.top < 256) {
+        stack.data[stack.top] = value;
+        stack.top = stack.top + 1;
+    }
+}
+SafetyNet<i32, StackError> stack_pop(&mut-Stack stack) {
+    if (stack.top > 0) {
+        stack.top = stack.top - 1;
+        return stack.data[stack.top];
+    }
+    Caught StackError.EmptyStack;
+}
+bool stack_is_empty(&-Stack stack) {
+    return stack.top == 0;
+}
+SafetyNet<i32, RuntimeError> collatz_steps(i32 n) {
+    if (n <= 0) {
+        Caught RuntimeError.InvalidInput;
+    }
+    i32 mut steps = 0;
+    i32 mut current = n;
+    while (current != 1) {
+        if (current % 2 == 0) {
+            current = current / 2;
+        } else {
+            current = current * 3 + 1;
+        }
+        steps = steps + 1;
+        if (steps > 10000) {
+            Caught RuntimeError.TooManySteps;
+        }
+    }
+    return steps;
+}
+enum TapeSymbol {
+    Zero,
+    One
+}
+enum State {
+    A,
+    B,
+    Halt
+}
+enum MachineError {
+    OutOfBounds,
+    InvalidState
+}
+struct TuringMachine {
+    TapeSymbol[100] tape
+    i32 head
+    State state
+    i32 steps
+}
+TuringMachine tm_new() {
+    return TuringMachine {
+        tape: {TapeSymbol.Zero},
+        head: 50,
+        state: State.A,
+        steps: 0
+    };
+}
+void tm_step(&mut-TuringMachine tm) {
+    if (tm.state == State.Halt) {
+        return;
+    }
+    var current_symbol = tm.tape[tm.head];
+    match (tm.state, current_symbol) {
+        (State.A, TapeSymbol.Zero) => {
+            tm.tape[tm.head] = TapeSymbol.One;
+            tm.head = tm.head + 1;
+            tm.state = State.B;
+        }
+        (State.A, TapeSymbol.One) => {
+            tm.tape[tm.head] = TapeSymbol.Zero;
+            tm.head = tm.head - 1;
+            tm.state = State.B;
+        }
+        (State.B, TapeSymbol.Zero) => {
+            tm.tape[tm.head] = TapeSymbol.One;
+            tm.head = tm.head - 1;
+            tm.state = State.A;
+        }
+        (State.B, TapeSymbol.One) => {
+            tm.tape[tm.head] = TapeSymbol.One;
+            tm.head = tm.head + 1;
+            tm.state = State.Halt;
+        }
+        _ => { }
+    }
+    tm.steps = tm.steps + 1;
+}
+i32 tm_run(&mut-TuringMachine tm, i32 max_steps) {
+    i32 mut i = 0;
+    while (i < max_steps && tm.state != State.Halt) {
+        tm_step(tm);
+        i = i + 1;
+    }
+    return tm.steps;
+}
+SafetyNet<(), RuntimeError> main() {
+    println!("=== TURING COMPLETENESS TESTS ===\n");
+    println!("1. Arithmetic:");
+    println!("   5 + 3 = {}", add(5, 3));
+    println!("   10 - 4 = {}", subtract(10, 4));
+    println!("   6 * 7 = {}", multiply(6, 7));
+    match divide(20, 4) {
+        value => println!("   20 / 4 = {}\n", value),
+        DivideError.DivideByZero => println!("   20 / 0 = Division by zero\n")
+    }
+    println!("2. Conditionals:");
+    println!("   abs(-42) = {}", absolute(-42));
+    println!("   max(15, 23) = {}\n", max(15, 23));
+    println!("3. Loops:");
+    println!("   sum(1..10) = {}", sum_to_n(10));
+    println!("   factorial(5) = {}\n", factorial_iterative(5));
+    println!("4. Recursion:");
+    println!("   factorial_recursive(6) = {}", factorial_recursive(6));
+    println!("   fibonacci(10) = {}\n", fibonacci(10));
+    println!("5. State Mutation:");
+    println!("   global_counter = {}", get_global());
+    increment_global();
+    increment_global();
+    increment_global();
+    println!("   after 3 increments = {}\n", get_global());
+    println!("6. Arrays:");
+    i32[5] mut numbers = {1, 2, 3, 4, 5};
+    println!("   array sum = {}", array_sum(&-numbers));
+    array_fill(&mut-numbers, 42);
+    println!("   after fill(42) = {}\n", array_sum(&-numbers));
+    println!("7. Stack Machine:");
+    var mut stack = stack_new();
+    stack_push(&mut-stack, 10);
+    stack_push(&mut-stack, 20);
+    stack_push(&mut-stack, 30);
+    match stack_pop(&mut-stack) {
+        value => println!("   pop = {}", value),
+        StackError.EmptyStack => println!("   pop = Empty stack")
+    }
+    match stack_pop(&mut-stack) {
+        value => println!("   pop = {}", value),
+        StackError.EmptyStack => println!("   pop = Empty stack")
+    }
+    match stack_pop(&mut-stack) {
+        value => println!("   pop = {}\n", value),
+        StackError.EmptyStack => println!("   pop = Empty stack\n")
+    }
+    println!("8. Collatz Conjecture:");
+    match collatz_steps(27) {
+        steps => println!("   collatz(27) takes {} steps\n", steps),
+        RuntimeError.InvalidInput => println!("   collatz() invalid input\n"),
+        RuntimeError.TooManySteps => println!("   collatz() exceeded step limit\n")
+    }
+    println!("9. Turing Machine (2-state Busy Beaver):");
+    var mut tm = tm_new();
+    var steps = tm_run(&mut-tm, 100);
+    println!("   Halted after {} steps\n", steps);
+    println!("=== ALL TESTS COMPLETE ===");
+    return Ok(());
+}

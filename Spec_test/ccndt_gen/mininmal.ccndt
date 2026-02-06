@@ -1,0 +1,12 @@
+
+
+
+Result<(), Box<dyn std::error::Error>> main() {
+    i32 x = 5;
+    i32 y = 10;
+    i32 z = x + y;
+
+    println!("Result: {}", z);
+
+    return 0;
+}
