@@ -5,7 +5,7 @@ public static class Tokens
     public readonly record struct SourceSpan(int Line, int Column, int Length);
 
     // Main Token class that the lexer produces
-    public class Token(Type tokenType, string lexeme, SourceSpan span)
+    public class Token(Type tokenType, MetaType metaType, string lexeme, SourceSpan span)
     {
         /// <summary>
         /// Gets the category or classification of the token (e.g., Identifier, Keyword, or Operator).
@@ -13,17 +13,31 @@ public static class Tokens
         public Type TokenType { get; } = tokenType;
 
         /// <summary>
+        /// Gets or sets the metadata type of the token, which provides additional context or categorization
+        /// beyond the primary token type, such as variable mutability, control flow constructs, or other semantic details.
+        /// </summary>
+        public MetaType TokenInfo { get; set; } = metaType;
+
+        /// <summary>
+        /// Represents the syntactic or semantic classification of a token as determined by the parser,
+        /// which indicates the role or construct in the programming language, such as declarations,
+        /// statements, expressions, or other significant elements.
+        /// </summary>
+        /// <remarks>This field should only be touched by parser, not the lexer.</remarks>
+        public ParsedType ParsedType { get; set; }
+
+        /// <summary>
         /// Gets the raw text sequence from the source code that matched this token.
         /// </summary>
         public string Lexeme { get; } = lexeme;
 
         /// <summary>
-        /// Gets the 1-based line number in the source file where this token was encountered.
+        /// At which line number this token starts.
         /// </summary>
         public int Line => Span.Line;
 
         /// <summary>
-        /// Gets the 1-based column number where this token starts.
+        /// Which column this token starts at.
         /// </summary>
         public int Column => Span.Column;
 
@@ -38,70 +52,135 @@ public static class Tokens
     }
 
     // Flat TokenType enum for the lexer (what you actually scan)
+
     public enum Type
     {
-        // Literals
-        IntegerLiteral, // Default to i32 at minimum
-        FloatLiteral,   // Default to f32 at minimum
-        StringLiteral,  // Default to string (obviously, but there's more than one way to make a string actually)
-        
-        // Identifiers
-        Identifier, // Enforce IdentifierRegex.Alphanumeric rule
-        
-        // Keywords
-        Var, Mut, Fn, If, Else, While, For, Return, Void,
-        
-        // Type keywords (from Core IR output)
-        
-        // ReSharper disable InconsistentNaming
-        TypeKeyword,
-        // ReSharper restore InconsistentNaming
-        
-        // Operators
-        Plus, Minus, Star, Slash, Percent,     // + - * / %
-        Ampersand, Pipe, Caret,                // & | ^
-        AmpersandAmpersand, PipePipe,          // && ||
-        ShiftLeft, ShiftRight,                 // << >>
-        EqualEqual, BangEqual,                 // == !=
-        Less,      Greater,                    // < >
-        LessEqual, GreaterEqual,               // <= >=
-        Assignment,                            // =
-        
-        // Delimiters
-        LeftAngle, RightAngle,                 // < >
-        LeftParen, RightParen,                 // ( )
-        LeftBrace, RightBrace,                 // { }
-        LeftBracket, RightBracket,             // [ ]
-        Semicolon, Comma, Dot,                 // ; , .
-        Colon, ColonColon,                     // : ::
-        
-        // Special
-        Exclamation, Question,                 // ! ?
+        Keyword,
+        Identifier,
+        Literal,
+        Symbol,
         Newline,
-        EndOfFile
+        Eof
     }
 
-    // Semantic operator types (for AST, not lexer)
-    public static class Operator
+    public enum MetaType
     {
-        public enum Arithmetic
-        {
-            Add, Subtract, Multiply, Divide, Modulo
-        }
+        // Keyword
+        Var, 
+        Mut, Unmut, 
+        If, Else, 
+        While, For, Foreach,
+        Return, 
+        Struct, Trait, 
+        Define, 
+        Enum, Bundles, 
+        Using, As, 
+        From, Where,
+        Unsafe, Rust, 
+        UnsafeRust, Asm,
+        Null, 
+        Match, Caught,
+        Drop, Defer,
+            // Syntactic sugar (strip this)
+            Static, New, Function,
+        
+        
+        // Identifier (Limit to semantically visible types)
+        MutBorrow, Borrow,     // &foo, &!foo 
+        Macro,                 // #foo
+        Pointer, MutPointer,   // *foo, *!foo
+        Generic,               // foo<T>
+        
+        // Literal
+        Binary,   // 0b----
+        Hex,      // 0x----
+        String,   // "String"
+        Char,     // 'E'
+        Bool,     // true false
+        Integer,  // 3280727
+        Float,    // 420.67 or 21E5
+        
+        // Symbol
+            // Operators
+            Plus, Minus, Star, Slash, Percent, Pound,   // + - * / % #
+            Ampersand, Pipe, Caret, Bang, At,           // & | ^ ! @
+            AmpersandAmpersand, PipePipe,               // && ||
+            ShiftLeft,  ShiftRight,                     // << >>
+            EqualEqual, BangEqual,                      // == !=
+            Less,       Greater,                        // < >
+            LessEqual,  GreaterEqual,                   // <= >=
+            Equal,      EqualGreater,                   // = =>
+            Question,   QuestionQuestion,               // ? ??
+            QuestionQuestionEqual,                      // ??=
+            DotDot,                                     // .. (not sure if we gonna use this)
+            
+            // Delimiters
+            LeftAngle, RightAngle,                      // < >
+            LeftParen, RightParen,                      // ( )
+            LeftBrace, RightBrace,                      // { }
+            LeftBracket, RightBracket,                  // [ ]
+            Semicolon, Comma, Dot,                      // ; , .
+            Colon, ColonColon,                          // : ::
+    }
+    
+    // Only added by parsers
+    public enum ParsedType
+    { 
+        // === Top-Level Declarations ===
+        // These are the main constructs that can appear at the top level of a file.
+        FunctionDeclaration,
+        StructDeclaration,
+        TraitDeclaration,
+        EnumDeclaration,
+        DefineBlock,        // The unified 'define' construct.
+        ImportStatement,    // using ...;
 
-        public enum BoolComparison
-        {
-            And, Or,
-            LessThan,        GreaterThan,
-            LessThanOrEqual, GreaterThanOrEqual,
-            Equal, NotEqual,
-        }
+        // === Statements ===
+        // Statements are instructions that perform an action but do not resolve to a value.
+        VariableDeclaration,
+        ExpressionStatement, // An expression used as a statement (e.g., a function call).
+        ReturnStatement,
+        IfStatement,
+        // The spec doesn't show while/for, but your MetaType has them, so they'd be here.
+        WhileStatement, 
+        ForStatement,   
+        BlockStatement,     // A block of statements: { ... }
+        DeferStatement,
+        DropStatement,
 
-        public enum Bit
-        {
-            ShiftLeft, ShiftRight,
-            And, Or, Xor
-        }
+        // === Expressions ===
+        // Expressions are constructs that evaluate to a value.
+        LiteralExpression,      // "hello", 5, 4.2, true, null
+        IdentifierExpression,   // A variable or function name.
+        PathExpression,         // std.collections.HashMap
+        UnaryExpression,        // e.g., -x, !y, &foo
+        BinaryExpression,       // e.g., x + y
+        AssignmentExpression,   // x = y
+        CallExpression,         // my_func(a, b)
+        MemberAccessExpression, // my_struct.field
+        IndexExpression,        // my_array[i]
+        StructInitializer,      // Point { x: 0, y: 0 }
+        ArrayInitializer,       // int[5] { 1, 2, 3, 4, 5 }
+        TupleInitializer,       // (1, "hello")
+        MatchExpression,        // match (result) { ... }
+        LambdaExpression,       // (int x) => x * 2
+        UnsafeBlock,
+        RustBlock,              // rust! { ... }
+        AsmBlock,               // asm! { ... }
+
+        // === Types, Generics, and Lifetimes ===
+        // These nodes represent type annotations and related concepts.
+        TypeReference,          // Represents a type itself, e.g., 'int', 'string?', '&!MyStruct'
+        GenericParameter,       // <T>
+        LifetimeDeclaration,    // ^[input]
+        WhereClause,            // where ^[a > b]
+
+        // === Miscellaneous Grammar Components ===
+        // These are important parts of other declarations, but not standalone nodes.
+        FunctionParameter,      // A single parameter in a function signature: 'int x'
+        Attribute,              // @must_use, @derive(...)
+        EnumVariant,            // A single variant in an enum declaration.
+        StructField,            // A single field in a struct declaration.
     }
 
     /// <summary>
