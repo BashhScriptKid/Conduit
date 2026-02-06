@@ -383,8 +383,53 @@ public class Lexer
             case ']': AddToken(Tokens.Type.Symbol, Tokens.MetaType.RightBracket); return;
             case ';': AddToken(Tokens.Type.Symbol, Tokens.MetaType.Semicolon);    return;
             case ',': AddToken(Tokens.Type.Symbol, Tokens.MetaType.Comma);        return;
-            case '.': AddToken(Tokens.Type.Symbol, Tokens.MetaType.Dot);          return;
-            case '?': AddToken(Tokens.Type.Symbol, Tokens.MetaType.Question);     return;
+            case '.':
+                // Handle range/operator '..' first
+                if (Match('.'))
+                {
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.DotDot);
+                    return;
+                }
+
+                // Leading-dot float: `.123` -> Float literal
+                if (IsDigit(Peek()))
+                {
+                    // Consume fractional digits after the dot
+                    while (IsDigit(Peek())) Advance();
+
+                    // Optional exponent part
+                    if (Peek() == 'e' || Peek() == 'E')
+                    {
+                        Advance(); // consume 'e' or 'E'
+                        if (Peek() == '+' || Peek() == '-') Advance(); // optional sign
+                        if (!IsDigit(Peek()))
+                        {
+                            ReportError("Invalid float literal. Expected at least one digit in exponent.", GetLineCol());
+                        }
+                        else
+                        {
+                            while (IsDigit(Peek())) Advance();
+                        }
+                    }
+
+                    AddToken(Tokens.Type.Literal, Tokens.MetaType.Float);
+                    return;
+                }
+
+                AddToken(Tokens.Type.Symbol, Tokens.MetaType.Dot);
+                return;
+            case '?':
+                if (Match('?'))
+                {
+                    if (Match('='))
+                        AddToken(Tokens.Type.Symbol, Tokens.MetaType.QuestionQuestionEqual);
+                    else
+                        AddToken(Tokens.Type.Symbol, Tokens.MetaType.QuestionQuestion);
+
+                    return;
+                }
+                AddToken(Tokens.Type.Symbol, Tokens.MetaType.Question);
+                return;
 
             // Potentially multi-character operators.
             case '+':
@@ -728,31 +773,35 @@ public class Lexer
         if (Peek() == '0')
         {
             char next = PeekNext();
-            if (next is 'b' or 'B')
+
+            switch (next)
             {
-                Advance(); // Consume '0'
-                Advance(); // Consume 'b' or 'B'
-                if (!IsDigit(Peek()) || (Peek() != '0' && Peek() != '1'))
+                case 'b' or 'B':
                 {
-                    ReportError("Invalid binary literal. Expected at least one binary digit (0-1) after '0b'.", GetLineCol());
+                    Advance(); // Consume '0'
+                    Advance(); // Consume 'b' or 'B'
+                    if (!IsDigit(Peek()) || (Peek() != '0' && Peek() != '1'))
+                    {
+                        ReportError("Invalid binary literal. Expected at least one binary digit (0-1) after '0b'.", GetLineCol());
+                        return;
+                    }
+                    while (Peek() == '0' || Peek() == '1') Advance();
+                    AddToken(Tokens.Type.Literal, Tokens.MetaType.Binary);
                     return;
                 }
-                while (Peek() == '0' || Peek() == '1') Advance();
-                AddToken(Tokens.Type.Literal, Tokens.MetaType.Binary);
-                return;
-            }
-            else if (next is 'x' or 'X')
-            {
-                Advance(); // Consume '0'
-                Advance(); // Consume 'x' or 'X'
-                if (!IsHexDigit(Peek()))
+                case 'x' or 'X':
                 {
-                    ReportError("Invalid hexadecimal literal. Expected at least one hex digit (0-9, a-f, A-F) after '0x'.", GetLineCol());
+                    Advance(); // Consume '0'
+                    Advance(); // Consume 'x' or 'X'
+                    if (!IsHexDigit(Peek()))
+                    {
+                        ReportError("Invalid hexadecimal literal. Expected at least one hex digit (0-9, a-f, A-F) after '0x'.", GetLineCol());
+                        return;
+                    }
+                    while (IsHexDigit(Peek())) Advance();
+                    AddToken(Tokens.Type.Literal, Tokens.MetaType.Hex);
                     return;
                 }
-                while (IsHexDigit(Peek())) Advance();
-                AddToken(Tokens.Type.Literal, Tokens.MetaType.Hex);
-                return;
             }
         }
 
