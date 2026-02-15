@@ -103,7 +103,7 @@ public static class Tokens
         
         // Symbol
             // Operators
-            Plus, Minus, Star, Slash, Percent,          // + - * / %
+            Plus, Minus, Star, Slash, Percent, At,      // + - * / % @
             Ampersand, Pipe, Caret, Bang,               // & | ^ ! 
             AmpersandAmpersand, PipePipe,               // && ||
             ShiftLeft,  ShiftRight,                     // << >>
@@ -714,6 +714,12 @@ public class Lexer
         string fullLexeme = _Source.Substring(_Start, _Current - _Start);
         string identifierPart = escapeKeyword ? fullLexeme.Substring(1) : fullLexeme;
 
+        if (string.IsNullOrEmpty(identifierPart) && escapeKeyword)
+        {
+            // Standalone '@' token
+            AddToken(Tokens.Type.Symbol, Tokens.MetaType.At);
+        }
+
         if (IsBool(identifierPart))
         {
             AddToken(Tokens.Type.Literal, Tokens.MetaType.Bool);
@@ -988,8 +994,8 @@ public class Lexer
     // Pattern instead of regex for efficiency
     private static bool IsDigit(char c) => c is >= '0' and <= '9';
 
-    // Conduit identifiers start with alpha or underscore (see IdentifierRegex.alpha + common "_" binding).
-    private static bool IsIdentifierStart(char c) => char.IsLetter(c) || c == '_';
+    // Conduit identifiers start with alpha or underscore (see IdentifierRegex.alpha + common "_" binding), also uses @ for keyword escape.
+    private static bool IsIdentifierStart(char c) => char.IsLetter(c) || c is '_' or '@';
 
     // Remaining identifier characters allow digits and underscore.
     private static bool IsIdentifierPart(char c) => char.IsLetterOrDigit(c) || c == '_';
