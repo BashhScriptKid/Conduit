@@ -278,8 +278,8 @@ public static class Tokens
 }
 public class Lexer
 {
-    // Source text to scan. This is the preprocessed Conduit "core" input,
-    // but the lexer is robust enough to handle raw source as well.
+    // Source text to scan. Originally designed to handle 'preprocessed' code
+    // but now it's strictly raw source due to source debuggability issue
     private readonly string _Source;
 
     // _start marks the beginning of the current token.
