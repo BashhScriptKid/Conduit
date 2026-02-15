@@ -372,7 +372,7 @@ public class Lexer
                 return;
 
             // Single-character delimiters and operators.
-            case '@': ReadIdentifierOrKeyword();                                  return;
+            //case '@': ReadIdentifierOrKeyword();                                  return;
             case '(': AddToken(Tokens.Type.Symbol, Tokens.MetaType.LeftParen);    return;
             case ')': AddToken(Tokens.Type.Symbol, Tokens.MetaType.RightParen);   return;
             case '{': AddToken(Tokens.Type.Symbol, Tokens.MetaType.LeftBrace);    return;
