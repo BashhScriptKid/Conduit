@@ -90,8 +90,6 @@ public static class Tokens
         MutBorrow, Borrow,                 // &foo, &!foo 
         Macro,                             // #foo
         Pointer, MutPointer,               // *foo, *!foo
-        Generic,                           // foo<T>
-        Incremental, Decremental,          // foo++, foo-- or ++foo, --foo
         IdentifierNegate,                  // !foo
         
         // Literal
@@ -105,17 +103,17 @@ public static class Tokens
         
         // Symbol
             // Operators
-            Plus, Minus, Star, Slash, Percent, Pound,   // + - * / % #
-            Ampersand, Pipe, Caret, Bang, At,           // & | ^ ! @
+            Plus, Minus, Star, Slash, Percent,          // + - * / %
+            Ampersand, Pipe, Caret, Bang,               // & | ^ ! 
             AmpersandAmpersand, PipePipe,               // && ||
             ShiftLeft,  ShiftRight,                     // << >>
             PlusPlus, MinusMinus,                       // ++ --
             PlusEqual, MinusEqual,                      // += -=
             StarEqual, SlashEqual,                      // *= /=
-            AmpersandEqual, CaretEqual, PipeEqual,      // &= ^=
+            AmpersandEqual, CaretEqual, PipeEqual,      // &= ^= |=
             ShiftLeftEqual, ShiftRightEqual,            // <<= >>=
             EqualEqual, BangEqual,                      // == !=
-            Less,       Greater,                        // < >
+            Less_LeftAngle, Greater_RightAngle,         // < >
             LessEqual,  GreaterEqual,                   // <= >=
             Equal,      EqualGreater,                   // = =>
             Question,   QuestionQuestion,               // ? ??
@@ -123,8 +121,6 @@ public static class Tokens
             DotDot,                                     // .. (not sure if we gonna use this)
             
             // Delimiters
-            DoubleQuote, SingleQuote,                   // " '
-            LeftAngle, RightAngle,                      // < >
             LeftParen, RightParen,                      // ( )
             LeftBrace, RightBrace,                      // { }
             LeftBracket, RightBracket,                  // [ ]
@@ -276,7 +272,7 @@ public static class Tokens
         { "defer",       MetaType.Defer       },
         { "static",      MetaType.Static      },
         { "new",         MetaType.New         },
-        { "function",    MetaType.Function    }
+        { "function",    MetaType.Function    },
     };
 }
 public class Lexer
@@ -436,7 +432,7 @@ public class Lexer
                 if (Match('='))
                     AddToken(Tokens.Type.Symbol, Tokens.MetaType.PlusEqual); // Handles +=
                 else if (Match('+'))
-                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.Incremental); // Handles ++
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.PlusPlus); // Handles ++
                 else
                     AddToken(Tokens.Type.Symbol, Tokens.MetaType.Plus);      // Handles +
                 return;
@@ -445,7 +441,7 @@ public class Lexer
                 if (Match('='))
                     AddToken(Tokens.Type.Symbol, Tokens.MetaType.MinusEqual); // Handles -=
                 else if (Match('-'))
-                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.Decremental); // Handles --
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.MinusMinus); // Handles --
                 else
                     AddToken(Tokens.Type.Symbol, Tokens.MetaType.Minus);      // Handles -
                 return;
@@ -554,10 +550,17 @@ public class Lexer
                     AddToken(Tokens.Type.Symbol, Tokens.MetaType.BangEqual);
                 else if (TryConsumeIdentifier(out _))
                     AddToken(Tokens.Type.Identifier, Tokens.MetaType.IdentifierNegate);
+                else 
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.Bang);
                 return;
 
             case '=':
-                AddToken(Tokens.Type.Symbol, Match('=') ? Tokens.MetaType.EqualEqual : Tokens.MetaType.Equal);
+                if (Match('='))
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.EqualEqual);
+                else if (Match('>'))
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.EqualGreater);
+                else
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.Equal);
                 return;
 
             case '<':
@@ -575,7 +578,7 @@ public class Lexer
                     return;
                 }
                 // <
-                AddToken(Tokens.Type.Symbol, Tokens.MetaType.Less);
+                AddToken(Tokens.Type.Symbol, Tokens.MetaType.Less_LeftAngle);
                 return;
 
             case '>':
@@ -593,7 +596,7 @@ public class Lexer
                     return;
                 }
                 // >
-                AddToken(Tokens.Type.Symbol, Tokens.MetaType.Greater);
+                AddToken(Tokens.Type.Symbol, Tokens.MetaType.Greater_RightAngle);
                 return;
 
             case '&':
@@ -615,6 +618,8 @@ public class Lexer
                     // Check if it's '&' followed by an identifier, for a borrow type context
                     AddToken(Tokens.Type.Identifier, Tokens.MetaType.Borrow); // &foo
                 }
+                else if (Match('=')) // &=
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.AmpersandEqual) ;
                 else
                 {
                     // It's just an ampersand operator (or double ampersand)
@@ -623,7 +628,12 @@ public class Lexer
                 return;
 
             case '|':
-                AddToken(Tokens.Type.Symbol, Match('|') ? Tokens.MetaType.PipePipe : Tokens.MetaType.Pipe);
+                if (Match('=')) // |=
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.PipeEqual);
+                else if (Match('|')) // ||
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.PipePipe);
+                else // |
+                    AddToken(Tokens.Type.Symbol, Tokens.MetaType.Pipe);
                 return;
 
             case ':':
@@ -704,13 +714,19 @@ public class Lexer
         string fullLexeme = _Source.Substring(_Start, _Current - _Start);
         string identifierPart = escapeKeyword ? fullLexeme.Substring(1) : fullLexeme;
 
+        if (IsBool(identifierPart))
+        {
+            AddToken(Tokens.Type.Literal, Tokens.MetaType.Bool);
+            return;
+        }
+
         // 4. Check if it's a reserved keyword (only if not escaped).
         if (Tokens.Keywords.TryGetValue(identifierPart, out Tokens.MetaType keywordType) && !escapeKeyword)
         {
             AddToken(Tokens.Type.Keyword, keywordType);
             return;
         }
-
+        
         // 5. Otherwise it's a regular identifier (possibly escaped).
         AddToken(Tokens.Type.Identifier, Tokens.MetaType.None);
     }
@@ -754,9 +770,9 @@ public class Lexer
         identifier = _Source.Substring(startOfIdentifier, _Current - startOfIdentifier);
 
         // 4. Validate against keywords (only if not escaped).
-        if (Tokens.Keywords.TryGetValue(identifier, out _) && !escapeKeyword)
+        if ((Tokens.Keywords.TryGetValue(identifier, out _) || IsBool(identifier)) && !escapeKeyword)
         {
-            ReportError($"Unexpected keyword '{identifier}'. To use it as an identifier, prefix it with '@'.", _Current - _LineStart + 1);
+            ReportError($"Unexpected keyword or bool literal '{identifier}'. To use it as an identifier, prefix it with '@'.", _Current - _LineStart + 1);
             return false; // Indicate failure, but the 'identifier' out parameter will hold the keyword.
         }
     
@@ -850,7 +866,7 @@ public class Lexer
 
         AddToken(Tokens.Type.Literal, Tokens.MetaType.Integer);
         
-        bool IsHexDigit(char c) => IsDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+        bool IsHexDigit(char c) => IsDigit(c) || c is >= 'a' and <= 'f' || c is >= 'A' and <= 'F';
     }
 
     /// <summary>
@@ -885,6 +901,8 @@ public class Lexer
 
         ReportError("Unterminated string literal", GetLineCol());
     }
+    
+    private bool IsBool(string s) => s == "true" || s == "false";
 
     /// <summary>
     /// Skip a /* ... */ comment. Tracks newlines for correct line numbers.
