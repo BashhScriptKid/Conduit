@@ -117,6 +117,7 @@ public static class Tokens
             LessEqual,  GreaterEqual,                   // <= >=
             Equal,      EqualGreater,                   // = =>
             Question,   QuestionQuestion,               // ? ??
+            
             QuestionQuestionEqual,                      // ??=
             DotDot,                                     // .. (not sure if we gonna use this)
             
@@ -371,6 +372,7 @@ public class Lexer
                 return;
 
             // Single-character delimiters and operators.
+            case '@': ReadIdentifierOrKeyword();                                  return;
             case '(': AddToken(Tokens.Type.Symbol, Tokens.MetaType.LeftParen);    return;
             case ')': AddToken(Tokens.Type.Symbol, Tokens.MetaType.RightParen);   return;
             case '{': AddToken(Tokens.Type.Symbol, Tokens.MetaType.LeftBrace);    return;
